@@ -24,7 +24,11 @@ interface CreateOrderBody {
 }
 
 function normalizePhone(raw: string): string {
-  return raw.replace(/\D/g, "");
+  const digits = raw.replace(/\D/g, "");
+  if (digits.length <= 11 && !digits.startsWith("55")) {
+    return `55${digits}`;
+  }
+  return digits;
 }
 
 const corsHeaders = {
