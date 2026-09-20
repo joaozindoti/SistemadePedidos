@@ -170,45 +170,58 @@ export default function AdminQueuePage() {
   }, []);
 
   useEffect(() => {
-    const channel = supabase
-      .channel("orders-queue")
-      .on(
-        "postgres_changes",
-        { event: "INSERT", schema: "public", table: "orders" },
-        async (payload) => {
-          const newId = (payload.new as { id: string }).id;
+    let cancelled = false;
+    let channel: ReturnType<typeof supabase.channel> | null = null;
 
-          const { data, error } = await supabase
-            .from("orders")
-            .select(ORDER_SELECT)
-            .eq("id", newId)
-            .single();
+    (async () => {
+      // O join do canal lê o token de auth do socket de forma síncrona. Sem
+      // aguardar setAuth() aqui, o primeiro subscribe() do mount pode sair
+      // autenticado como anon (token ainda não carregou), e a policy de
+      // orders passa a filtrar os eventos de INSERT em silêncio.
+      await supabase.realtime.setAuth();
+      if (cancelled) return;
 
-          if (error || !data) return;
+      channel = supabase
+        .channel("orders-queue")
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "orders" },
+          async (payload) => {
+            const newId = (payload.new as { id: string }).id;
 
-          const newOrder = data as unknown as QueueOrder;
-          setOrders((current) => [...current, newOrder]);
+            const { data, error } = await supabase
+              .from("orders")
+              .select(ORDER_SELECT)
+              .eq("id", newId)
+              .single();
 
-          setHighlighted((current) => new Set(current).add(newId));
-          setTimeout(() => {
-            setHighlighted((current) => {
-              const next = new Set(current);
-              next.delete(newId);
-              return next;
-            });
-          }, 4000);
+            if (error || !data) return;
 
-          try {
-            playNewOrderBeep(getAudioContext());
-          } catch (err) {
-            console.log("Não foi possível tocar o som de novo pedido:", err);
-          }
-        },
-      )
-      .subscribe();
+            const newOrder = data as unknown as QueueOrder;
+            setOrders((current) => [...current, newOrder]);
+
+            setHighlighted((current) => new Set(current).add(newId));
+            setTimeout(() => {
+              setHighlighted((current) => {
+                const next = new Set(current);
+                next.delete(newId);
+                return next;
+              });
+            }, 4000);
+
+            try {
+              playNewOrderBeep(getAudioContext());
+            } catch (err) {
+              console.log("Não foi possível tocar o som de novo pedido:", err);
+            }
+          },
+        )
+        .subscribe();
+    })();
 
     return () => {
-      supabase.removeChannel(channel);
+      cancelled = true;
+      if (channel) supabase.removeChannel(channel);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
