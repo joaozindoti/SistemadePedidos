@@ -8,6 +8,9 @@ const EVOLUTION_API_URL = Deno.env.get("EVOLUTION_API_URL")!;
 const EVOLUTION_API_KEY = Deno.env.get("EVOLUTION_API_KEY")!;
 const EVOLUTION_INSTANCE_NAME = Deno.env.get("EVOLUTION_INSTANCE_NAME")!;
 
+// TODO: trocar pela chave Pix real do cliente assim que ele passar.
+const PIX_KEY = "SUA_CHAVE_PIX_AQUI";
+
 interface StatusPayload {
   order_id: string;
   status: string;
@@ -16,12 +19,94 @@ interface StatusPayload {
   customer_id: string;
 }
 
-function buildMessage(payload: StatusPayload): string | null {
+interface OrderItemRow {
+  quantity: number;
+  menu_item: { name: string } | { name: string }[] | null;
+  crust: { name: string } | { name: string }[] | null;
+  order_item_flavors: { flavor: { name: string } | { name: string }[] | null }[];
+}
+
+function one<T>(rel: T | T[] | null): T | null {
+  return Array.isArray(rel) ? (rel[0] ?? null) : rel;
+}
+
+function formatBRL(value: number): string {
+  return value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function formatOrderItemsList(items: OrderItemRow[]): string {
+  return items
+    .map((item) => {
+      const menuItemName = one(item.menu_item)?.name ?? "Item";
+      const flavorNames = item.order_item_flavors
+        .map((f) => one(f.flavor)?.name)
+        .filter(Boolean)
+        .join(" + ");
+      const crustName = one(item.crust)?.name;
+
+      let line = `${item.quantity}x ${menuItemName}`;
+      if (flavorNames) line += ` (${flavorNames})`;
+      if (crustName) line += ` - Com ${crustName}`;
+      return line;
+    })
+    .join("\n");
+}
+
+function paymentLine(paymentMethod: string): string {
+  if (paymentMethod === "pix") {
+    return `Pagamento via Pix: chave ${PIX_KEY} (envie o comprovante aqui no WhatsApp)`;
+  }
+  if (paymentMethod === "cartao") {
+    return "Pagamento no cartão, na entrega ou na retirada.";
+  }
+  if (paymentMethod === "dinheiro") {
+    return "Pagamento em dinheiro, na entrega ou na retirada.";
+  }
+  return "";
+}
+
+async function buildMessage(
+  supabase: ReturnType<typeof createClient>,
+  payload: StatusPayload,
+): Promise<string | null> {
   if (payload.status === "preparo") {
-    const tempo = payload.estimated_minutes
-      ? ` Tempo estimado: ${payload.estimated_minutes} min.`
-      : "";
-    return `Seu pedido foi confirmado e está sendo preparado!${tempo}`;
+    const { data: order, error: orderError } = await supabase
+      .from("orders")
+      .select(
+        `
+        total, payment_method,
+        order_items (
+          quantity,
+          menu_item:menu_items ( name ),
+          crust:crusts ( name ),
+          order_item_flavors ( flavor:flavors ( name ) )
+        )
+      `,
+      )
+      .eq("id", payload.order_id)
+      .single();
+
+    if (orderError || !order) {
+      console.error("Falha ao buscar itens do pedido:", orderError);
+      const tempo = payload.estimated_minutes
+        ? ` Tempo estimado: ${payload.estimated_minutes} min.`
+        : "";
+      return `Seu pedido foi confirmado e está sendo preparado!${tempo}`;
+    }
+
+    const itemsList = formatOrderItemsList(
+      (order.order_items ?? []) as unknown as OrderItemRow[],
+    );
+    const pagamento = paymentLine(order.payment_method as string);
+
+    const lines = ["Seu pedido foi confirmado e está sendo preparado!"];
+    if (payload.estimated_minutes) {
+      lines.push(`Tempo estimado: ${payload.estimated_minutes} min`);
+    }
+    lines.push("", itemsList, "", `Total: ${formatBRL(Number(order.total))}`);
+    if (pagamento) lines.push(pagamento);
+
+    return lines.join("\n");
   }
 
   if (payload.status === "pronto") {
@@ -56,7 +141,7 @@ serve(async (req) => {
     return new Response("ok", { status: 200 });
   }
 
-  const message = buildMessage(payload);
+  const message = await buildMessage(supabase, payload);
   if (!message) {
     return new Response("ok", { status: 200 });
   }

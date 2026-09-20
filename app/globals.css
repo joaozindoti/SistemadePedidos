@@ -212,3 +212,16 @@ body {
 .animate-order-pulse {
   animation: order-pulse 1.1s ease-out 3;
 }
+
+/*
+ * Campo com fonte < 16px dispara zoom automático no Safari/Chrome mobile
+ * ao focar. Não mexe no viewport (isso quebraria o zoom manual do
+ * usuário, prejudicando acessibilidade) — só garante 16px nos campos.
+ */
+@media (max-width: 767px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
