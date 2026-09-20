@@ -434,3 +434,8 @@ entrypoint = "./functions/whatsapp-webhook/index.ts"
 enabled = true
 verify_jwt = false
 entrypoint = "./functions/send-status-notification/index.ts"
+
+[functions.whatsapp-connect]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/whatsapp-connect/index.ts"
