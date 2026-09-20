@@ -61,24 +61,40 @@ serve(async (req) => {
     return new Response("ok", { status: 200 });
   }
 
-  const { data: customer } = await supabase
+  const { data: customer, error: customerError } = await supabase
     .from("customers")
     .select("phone")
     .eq("id", payload.customer_id)
     .single();
 
+  if (customerError) {
+    console.error("Falha ao buscar telefone do cliente:", customerError);
+    return new Response("ok", { status: 200 });
+  }
+
   if (!customer?.phone) {
     return new Response("ok", { status: 200 });
   }
 
-  await fetch(`${EVOLUTION_API_URL}/message/sendText/${EVOLUTION_INSTANCE_NAME}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      apikey: EVOLUTION_API_KEY,
+  const evolutionResponse = await fetch(
+    `${EVOLUTION_API_URL}/message/sendText/${EVOLUTION_INSTANCE_NAME}`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: EVOLUTION_API_KEY,
+      },
+      body: JSON.stringify({ number: customer.phone, text: message }),
     },
-    body: JSON.stringify({ number: customer.phone, text: message }),
-  });
+  );
+
+  if (!evolutionResponse.ok) {
+    const errorBody = await evolutionResponse.text();
+    console.error(
+      `Evolution API retornou ${evolutionResponse.status}:`,
+      errorBody,
+    );
+  }
 
   return new Response("ok", { status: 200 });
 });
