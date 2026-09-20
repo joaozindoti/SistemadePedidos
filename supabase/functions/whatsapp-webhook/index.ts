@@ -5,7 +5,7 @@ const EVOLUTION_API_URL = Deno.env.get("EVOLUTION_API_URL")!;
 const EVOLUTION_API_KEY = Deno.env.get("EVOLUTION_API_KEY")!;
 const EVOLUTION_INSTANCE_NAME = Deno.env.get("EVOLUTION_INSTANCE_NAME")!;
 const WHATSAPP_WEBHOOK_SECRET = Deno.env.get("WHATSAPP_WEBHOOK_SECRET")!;
-const CARDAPIO_LINK = "https://cardapio.suapizzaria.com/pedido";
+const CARDAPIO_LINK = "https://sistemade-pedidos.vercel.app/pedido";
 
 serve(async (req) => {
   if (req.method !== "POST") {
