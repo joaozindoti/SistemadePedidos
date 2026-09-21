@@ -23,6 +23,14 @@ export interface Crust {
   active: boolean;
 }
 
+export interface Address {
+  street: string;
+  number: string;
+  complement: string;
+  neighborhood: string;
+  city: string;
+}
+
 export type CartItem = {
   key: string;
   kind: "pizza" | "simple";

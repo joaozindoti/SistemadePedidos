@@ -1,6 +1,6 @@
 "use client";
 
-import type { CartItem } from "@/lib/types";
+import type { Address, CartItem } from "@/lib/types";
 import { formatBRL, Icon } from "./icons";
 
 export type PaymentMethod = "dinheiro" | "cartao" | "pix";
@@ -39,8 +39,8 @@ export default function CheckoutScreen({
   onCustomerPhoneChange: (value: string) => void;
   orderType: "entrega" | "retirada" | null;
   onOrderTypeChange: (type: "entrega" | "retirada") => void;
-  address: string;
-  onAddressChange: (value: string) => void;
+  address: Address;
+  onAddressChange: (patch: Partial<Address>) => void;
   paymentMethod: PaymentMethod | null;
   onPaymentMethodChange: (method: PaymentMethod) => void;
   orderNotes: string;
@@ -55,7 +55,11 @@ export default function CheckoutScreen({
     customerName.trim().length > 0 &&
     customerPhone.replace(/\D/g, "").length >= 10 &&
     orderType !== null &&
-    (orderType !== "entrega" || address.trim().length > 0) &&
+    (orderType !== "entrega" ||
+      (address.street.trim().length > 0 &&
+        address.number.trim().length > 0 &&
+        address.neighborhood.trim().length > 0 &&
+        address.city.trim().length > 0)) &&
     paymentMethod !== null &&
     !submitting;
 
@@ -158,16 +162,45 @@ export default function CheckoutScreen({
         </section>
 
         {orderType === "entrega" && (
-          <section className="mt-space-lg flex flex-col gap-space-xs">
+          <section className="mt-space-lg flex flex-col gap-space-sm">
             <span className="font-headline-md text-headline-md uppercase tracking-wider text-on-surface">
-              Endereço completo
+              Endereço de entrega
             </span>
-            <textarea
-              value={address}
-              onChange={(e) => onAddressChange(e.target.value)}
-              placeholder="Rua, número, bairro, ponto de referência"
-              rows={3}
-              className="w-full resize-none rounded border border-surface-container-highest bg-surface-container-low p-space-sm font-body-md text-body-md text-on-surface outline-none transition-colors placeholder:text-outline focus:border-primary"
+
+            <div className="flex gap-space-sm">
+              <input
+                value={address.street}
+                onChange={(e) => onAddressChange({ street: e.target.value })}
+                placeholder="Rua"
+                className="w-full flex-[3] rounded border border-surface-container-highest bg-surface-container-low p-space-sm font-body-md text-body-md text-on-surface outline-none transition-colors placeholder:text-outline focus:border-primary"
+              />
+              <input
+                value={address.number}
+                onChange={(e) => onAddressChange({ number: e.target.value })}
+                placeholder="Número"
+                className="w-full flex-[1] rounded border border-surface-container-highest bg-surface-container-low p-space-sm font-body-md text-body-md text-on-surface outline-none transition-colors placeholder:text-outline focus:border-primary"
+              />
+            </div>
+
+            <input
+              value={address.complement}
+              onChange={(e) => onAddressChange({ complement: e.target.value })}
+              placeholder="Complemento (opcional)"
+              className="w-full rounded border border-surface-container-highest bg-surface-container-low p-space-sm font-body-md text-body-md text-on-surface outline-none transition-colors placeholder:text-outline focus:border-primary"
+            />
+
+            <input
+              value={address.neighborhood}
+              onChange={(e) => onAddressChange({ neighborhood: e.target.value })}
+              placeholder="Bairro"
+              className="w-full rounded border border-surface-container-highest bg-surface-container-low p-space-sm font-body-md text-body-md text-on-surface outline-none transition-colors placeholder:text-outline focus:border-primary"
+            />
+
+            <input
+              value={address.city}
+              onChange={(e) => onAddressChange({ city: e.target.value })}
+              placeholder="Cidade"
+              className="w-full rounded border border-surface-container-highest bg-surface-container-low p-space-sm font-body-md text-body-md text-on-surface outline-none transition-colors placeholder:text-outline focus:border-primary"
             />
           </section>
         )}

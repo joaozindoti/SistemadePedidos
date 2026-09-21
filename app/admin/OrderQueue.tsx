@@ -31,13 +31,19 @@ interface QueueOrder {
   notes: string | null;
   estimated_minutes: number | null;
   created_at: string;
-  customer: { name: string | null; phone: string; address: string | null } | null;
+  address_street: string | null;
+  address_number: string | null;
+  address_complement: string | null;
+  address_neighborhood: string | null;
+  address_city: string | null;
+  customer: { name: string | null; phone: string } | null;
   items: QueueOrderItem[];
 }
 
 const ORDER_SELECT = `
   id, status, order_type, payment_method, total, notes, estimated_minutes, created_at,
-  customer:customers ( name, phone, address ),
+  address_street, address_number, address_complement, address_neighborhood, address_city,
+  customer:customers ( name, phone ),
   items:order_items (
     id, quantity, unit_price, item_notes,
     menu_item:menu_items ( name ),
@@ -51,6 +57,13 @@ const PAYMENT_LABELS: Record<string, string> = {
   cartao: "Cartão na entrega",
   pix: "Pix",
 };
+
+function formatAddress(order: QueueOrder): string | null {
+  if (!order.address_street) return null;
+  const line1 = `${order.address_street}, ${order.address_number ?? "s/n"}`;
+  const complement = order.address_complement ? ` - ${order.address_complement}` : "";
+  return `${line1}${complement}, ${order.address_neighborhood}, ${order.address_city}`;
+}
 
 const TABS: { status: OrderStatus; label: string }[] = [
   { status: "pendente", label: "Pendente" },
@@ -392,7 +405,7 @@ export default function OrderQueue() {
             <div className="flex flex-col gap-space-xs border-t border-surface-container-highest pt-space-xs font-body-sm text-body-sm text-on-surface-variant">
               <p>
                 {order.order_type === "entrega" ? "Entrega" : "Retirada"}
-                {order.customer?.address ? ` · ${order.customer.address}` : ""}
+                {formatAddress(order) ? ` · ${formatAddress(order)}` : ""}
               </p>
               <p>{PAYMENT_LABELS[order.payment_method] ?? order.payment_method}</p>
               {order.notes && <p>Obs: {order.notes}</p>}

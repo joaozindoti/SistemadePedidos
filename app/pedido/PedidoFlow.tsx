@@ -2,9 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import type { CartItem, Flavor, MenuItem } from "@/lib/types";
+import type { Address, CartItem, Flavor, MenuItem } from "@/lib/types";
 import MenuScreen from "./MenuScreen";
-import CustomizationSheet, { type SheetTarget } from "./CustomizationSheet";
+import CustomizationSheet, { type PizzaUnit, type SheetTarget } from "./CustomizationSheet";
 import CheckoutScreen, { type PaymentMethod } from "./CheckoutScreen";
 import SuccessScreen from "./SuccessScreen";
 import ErrorScreen from "./ErrorScreen";
@@ -68,7 +68,13 @@ export default function PedidoFlow() {
   const [orderType, setOrderType] = useState<"entrega" | "retirada" | null>(
     null,
   );
-  const [address, setAddress] = useState("");
+  const [address, setAddress] = useState<Address>({
+    street: "",
+    number: "",
+    complement: "",
+    neighborhood: "",
+    city: "",
+  });
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(
     null,
   );
@@ -100,26 +106,53 @@ export default function PedidoFlow() {
     [cart],
   );
 
-  function addPizzaToCart(params: {
-    size: MenuItem;
-    flavors: Flavor[];
-    quantity: number;
-    notes: string;
-  }) {
-    const { size, flavors: chosenFlavors, quantity, notes } = params;
-    const maxExtra = Math.max(...chosenFlavors.map((f) => Number(f.extra_price)));
-    const item: CartItem = {
-      key: crypto.randomUUID(),
-      kind: "pizza",
-      menu_item_id: size.id,
-      menu_item_name: size.name,
-      flavor_ids: chosenFlavors.map((f) => f.id),
-      flavor_names: chosenFlavors.map((f) => f.name),
-      quantity,
-      item_notes: notes.trim() || undefined,
-      unit_price: Number(size.base_price) + maxExtra,
-    };
-    setCart((c) => [...c, item]);
+  // Chave de "mesma configuração": mesmo tamanho, mesmo conjunto de sabores
+  // (ordem não importa), mesma borda e mesma observação — usada pra juntar
+  // unidades idênticas do loop de pizza numa única linha do carrinho.
+  function pizzaUnitKey(menuItemId: string, flavorIds: string[], crustId: string | undefined, notes: string) {
+    return `${menuItemId}|${[...flavorIds].sort().join(",")}|${crustId ?? ""}|${notes}`;
+  }
+
+  function addPizzaToCart(params: { size: MenuItem; units: PizzaUnit[] }) {
+    const { size, units } = params;
+    setCart((current) => {
+      const next = [...current];
+
+      for (const unit of units) {
+        const flavorIds = unit.flavors.map((f) => f.id);
+        const notes = unit.notes.trim();
+        const maxExtra = Math.max(...unit.flavors.map((f) => Number(f.extra_price)));
+        const key = pizzaUnitKey(size.id, flavorIds, undefined, notes);
+
+        const existingIndex = next.findIndex(
+          (item) =>
+            item.kind === "pizza" &&
+            pizzaUnitKey(item.menu_item_id, item.flavor_ids ?? [], item.crust_id, item.item_notes ?? "") ===
+              key,
+        );
+
+        if (existingIndex >= 0) {
+          next[existingIndex] = {
+            ...next[existingIndex],
+            quantity: next[existingIndex].quantity + 1,
+          };
+        } else {
+          next.push({
+            key: crypto.randomUUID(),
+            kind: "pizza",
+            menu_item_id: size.id,
+            menu_item_name: size.name,
+            flavor_ids: flavorIds,
+            flavor_names: unit.flavors.map((f) => f.name),
+            quantity: 1,
+            item_notes: notes || undefined,
+            unit_price: Number(size.base_price) + maxExtra,
+          });
+        }
+      }
+
+      return next;
+    });
   }
 
   function addSimpleItemToCart(params: {
@@ -154,7 +187,16 @@ export default function PedidoFlow() {
         name: customerName.trim(),
         phone: customerPhone.trim(),
         order_type: orderType,
-        address: orderType === "entrega" ? address.trim() : undefined,
+        address:
+          orderType === "entrega"
+            ? {
+                street: address.street.trim(),
+                number: address.number.trim(),
+                complement: address.complement.trim() || undefined,
+                neighborhood: address.neighborhood.trim(),
+                city: address.city.trim(),
+              }
+            : undefined,
         payment_method: paymentMethod,
         notes: orderNotes.trim() || undefined,
         items: cart.map((item) => ({
@@ -197,7 +239,7 @@ export default function PedidoFlow() {
     setCustomerName("");
     setCustomerPhone("");
     setOrderType(null);
-    setAddress("");
+    setAddress({ street: "", number: "", complement: "", neighborhood: "", city: "" });
     setPaymentMethod(null);
     setOrderNotes("");
     setOrderResult(null);
@@ -260,7 +302,7 @@ export default function PedidoFlow() {
           orderType={orderType}
           onOrderTypeChange={setOrderType}
           address={address}
-          onAddressChange={setAddress}
+          onAddressChange={(patch) => setAddress((current) => ({ ...current, ...patch }))}
           paymentMethod={paymentMethod}
           onPaymentMethodChange={setPaymentMethod}
           orderNotes={orderNotes}

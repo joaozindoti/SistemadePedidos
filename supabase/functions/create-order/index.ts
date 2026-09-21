@@ -13,11 +13,19 @@ interface OrderItemInput {
   item_notes?: string;
 }
 
+interface AddressInput {
+  street: string;
+  number: string;
+  complement?: string;
+  neighborhood: string;
+  city: string;
+}
+
 interface CreateOrderBody {
   name: string;
   phone: string;
   order_type: "entrega" | "retirada";
-  address?: string;
+  address?: AddressInput;
   payment_method: "dinheiro" | "cartao" | "pix";
   notes?: string;
   items: OrderItemInput[];
@@ -74,8 +82,18 @@ serve(async (req) => {
     return jsonResponse({ error: "Carrinho vazio" }, 400);
   }
 
-  if (body.order_type === "entrega" && !body.address) {
-    return jsonResponse({ error: "Endereço obrigatório para entrega" }, 400);
+  if (body.order_type === "entrega") {
+    const missing: string[] = [];
+    if (!body.address?.street?.trim()) missing.push("rua");
+    if (!body.address?.number?.trim()) missing.push("número");
+    if (!body.address?.neighborhood?.trim()) missing.push("bairro");
+    if (!body.address?.city?.trim()) missing.push("cidade");
+    if (missing.length > 0) {
+      return jsonResponse(
+        { error: `Endereço incompleto: falta ${missing.join(", ")}` },
+        400,
+      );
+    }
   }
 
   if (!["dinheiro", "cartao", "pix"].includes(body.payment_method)) {
@@ -87,7 +105,7 @@ serve(async (req) => {
   const { data: customer, error: customerError } = await supabase
     .from("customers")
     .upsert(
-      { phone, name: body.name, address: body.address ?? undefined },
+      { phone, name: body.name },
       { onConflict: "phone" },
     )
     .select("id")
@@ -180,6 +198,8 @@ serve(async (req) => {
     });
   }
 
+  const address = body.order_type === "entrega" ? body.address : undefined;
+
   const { data: order, error: orderError } = await supabase
     .from("orders")
     .insert({
@@ -188,6 +208,11 @@ serve(async (req) => {
       payment_method: body.payment_method,
       notes: body.notes ?? null,
       total,
+      address_street: address?.street.trim() ?? null,
+      address_number: address?.number.trim() ?? null,
+      address_complement: address?.complement?.trim() || null,
+      address_neighborhood: address?.neighborhood.trim() ?? null,
+      address_city: address?.city.trim() ?? null,
     })
     .select("id")
     .single();
