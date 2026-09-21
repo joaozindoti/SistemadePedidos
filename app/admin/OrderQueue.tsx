@@ -30,6 +30,7 @@ interface QueueOrder {
   total: number;
   notes: string | null;
   estimated_minutes: number | null;
+  delivery_estimated_minutes: number | null;
   created_at: string;
   address_street: string | null;
   address_number: string | null;
@@ -41,7 +42,8 @@ interface QueueOrder {
 }
 
 const ORDER_SELECT = `
-  id, status, order_type, payment_method, total, notes, estimated_minutes, created_at,
+  id, status, order_type, payment_method, total, notes, estimated_minutes,
+  delivery_estimated_minutes, created_at,
   address_street, address_number, address_complement, address_neighborhood, address_city,
   customer:customers ( name, phone ),
   items:order_items (
@@ -107,7 +109,10 @@ export default function OrderQueue() {
   const [orders, setOrders] = useState<QueueOrder[]>([]);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
   const [highlighted, setHighlighted] = useState<Set<string>>(new Set());
-  const [acceptingId, setAcceptingId] = useState<string | null>(null);
+  const [timePrompt, setTimePrompt] = useState<{
+    orderId: string;
+    kind: "preparo" | "entrega";
+  } | null>(null);
   const [estimateInput, setEstimateInput] = useState("");
   const [activeTab, setActiveTab] = useState<OrderStatus>("pendente");
   const [, setTick] = useState(0);
@@ -258,7 +263,7 @@ export default function OrderQueue() {
           : o,
       ),
     );
-    setAcceptingId(null);
+    setTimePrompt(null);
     setEstimateInput("");
   }
 
@@ -276,6 +281,31 @@ export default function OrderQueue() {
     setOrders((current) =>
       current.map((o) => (o.id === orderId ? { ...o, status: "pronto" } : o)),
     );
+  }
+
+  async function markReadyWithDeliveryTime(orderId: string) {
+    const minutes = Number(estimateInput);
+    if (!Number.isFinite(minutes) || minutes <= 0) return;
+
+    const { error } = await supabase
+      .from("orders")
+      .update({ status: "pronto", delivery_estimated_minutes: Math.round(minutes) })
+      .eq("id", orderId);
+
+    if (error) {
+      console.log("Falha ao marcar como pronto com tempo de entrega:", error);
+      return;
+    }
+
+    setOrders((current) =>
+      current.map((o) =>
+        o.id === orderId
+          ? { ...o, status: "pronto", delivery_estimated_minutes: Math.round(minutes) }
+          : o,
+      ),
+    );
+    setTimePrompt(null);
+    setEstimateInput("");
   }
 
   async function finalizeOrder(orderId: string) {
@@ -411,7 +441,12 @@ export default function OrderQueue() {
               {order.notes && <p>Obs: {order.notes}</p>}
               {order.estimated_minutes !== null && (
                 <p className="text-primary">
-                  Estimativa: {order.estimated_minutes} min
+                  Preparo: {order.estimated_minutes} min
+                </p>
+              )}
+              {order.delivery_estimated_minutes !== null && (
+                <p className="text-primary">
+                  Entrega: {order.delivery_estimated_minutes} min
                 </p>
               )}
               <p className="font-label-lg text-label-lg text-primary">
@@ -420,41 +455,46 @@ export default function OrderQueue() {
             </div>
 
             {order.status === "pendente" &&
-              (acceptingId === order.id ? (
-                <div className="flex items-center gap-space-xs">
-                  <input
-                    type="number"
-                    min={1}
-                    autoFocus
-                    value={estimateInput}
-                    onChange={(e) => setEstimateInput(e.target.value)}
-                    placeholder="Min"
-                    className="h-12 w-20 rounded border border-surface-container-highest bg-surface-container-low text-center font-mono text-body-lg text-on-surface outline-none focus:border-primary"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => acceptOrder(order.id)}
-                    className="min-h-12 flex-1 rounded-full bg-primary font-headline-md text-headline-md font-bold uppercase text-on-primary transition-colors hover:bg-primary-container"
-                  >
-                    Confirmar
-                  </button>
-                  <button
-                    type="button"
-                    aria-label="Cancelar"
-                    onClick={() => {
-                      setAcceptingId(null);
-                      setEstimateInput("");
-                    }}
-                    className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container"
-                  >
-                    <Icon name="close" className="text-[20px]" />
-                  </button>
+              (timePrompt?.orderId === order.id && timePrompt.kind === "preparo" ? (
+                <div className="flex flex-col gap-space-xs">
+                  <span className="font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant">
+                    Tempo de preparo (min)
+                  </span>
+                  <div className="flex items-center gap-space-xs">
+                    <input
+                      type="number"
+                      min={1}
+                      autoFocus
+                      value={estimateInput}
+                      onChange={(e) => setEstimateInput(e.target.value)}
+                      placeholder="Min"
+                      className="h-12 w-20 rounded border border-surface-container-highest bg-surface-container-low text-center font-mono text-body-lg text-on-surface outline-none focus:border-primary"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => acceptOrder(order.id)}
+                      className="min-h-12 flex-1 rounded-full bg-primary font-headline-md text-headline-md font-bold uppercase text-on-primary transition-colors hover:bg-primary-container"
+                    >
+                      Confirmar
+                    </button>
+                    <button
+                      type="button"
+                      aria-label="Cancelar"
+                      onClick={() => {
+                        setTimePrompt(null);
+                        setEstimateInput("");
+                      }}
+                      className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container"
+                    >
+                      <Icon name="close" className="text-[20px]" />
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <button
                   type="button"
                   onClick={() => {
-                    setAcceptingId(order.id);
+                    setTimePrompt({ orderId: order.id, kind: "preparo" });
                     setEstimateInput("");
                   }}
                   className="min-h-12 w-full rounded-full bg-primary font-headline-md text-headline-md font-bold uppercase tracking-wider text-on-primary transition-colors hover:bg-primary-container"
@@ -463,15 +503,64 @@ export default function OrderQueue() {
                 </button>
               ))}
 
-            {order.status === "preparo" && (
-              <button
-                type="button"
-                onClick={() => markReady(order.id)}
-                className="min-h-12 w-full rounded-full bg-primary font-headline-md text-headline-md font-bold uppercase tracking-wider text-on-primary transition-colors hover:bg-primary-container"
-              >
-                Marcar como pronto
-              </button>
-            )}
+            {order.status === "preparo" &&
+              (order.order_type === "entrega" ? (
+                timePrompt?.orderId === order.id && timePrompt.kind === "entrega" ? (
+                  <div className="flex flex-col gap-space-xs">
+                    <span className="font-label-sm text-label-sm uppercase tracking-wider text-on-surface-variant">
+                      Tempo até a entrega (min)
+                    </span>
+                    <div className="flex items-center gap-space-xs">
+                      <input
+                        type="number"
+                        min={1}
+                        autoFocus
+                        value={estimateInput}
+                        onChange={(e) => setEstimateInput(e.target.value)}
+                        placeholder="Min"
+                        className="h-12 w-20 rounded border border-surface-container-highest bg-surface-container-low text-center font-mono text-body-lg text-on-surface outline-none focus:border-primary"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => markReadyWithDeliveryTime(order.id)}
+                        className="min-h-12 flex-1 rounded-full bg-primary font-headline-md text-headline-md font-bold uppercase text-on-primary transition-colors hover:bg-primary-container"
+                      >
+                        Confirmar
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Cancelar"
+                        onClick={() => {
+                          setTimePrompt(null);
+                          setEstimateInput("");
+                        }}
+                        className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-on-surface-variant hover:bg-surface-container"
+                      >
+                        <Icon name="close" className="text-[20px]" />
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTimePrompt({ orderId: order.id, kind: "entrega" });
+                      setEstimateInput("");
+                    }}
+                    className="min-h-12 w-full rounded-full bg-primary font-headline-md text-headline-md font-bold uppercase tracking-wider text-on-primary transition-colors hover:bg-primary-container"
+                  >
+                    Marcar como pronto
+                  </button>
+                )
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => markReady(order.id)}
+                  className="min-h-12 w-full rounded-full bg-primary font-headline-md text-headline-md font-bold uppercase tracking-wider text-on-primary transition-colors hover:bg-primary-container"
+                >
+                  Marcar como pronto
+                </button>
+              ))}
 
             {order.status === "pronto" && (
               <button

@@ -16,6 +16,7 @@ interface StatusPayload {
   status: string;
   order_type: "entrega" | "retirada";
   estimated_minutes: number | null;
+  delivery_estimated_minutes: number | null;
   customer_id: string;
 }
 
@@ -111,8 +112,8 @@ async function buildMessage(
 
   if (payload.status === "pronto") {
     if (payload.order_type === "entrega") {
-      const tempo = payload.estimated_minutes
-        ? ` Chega em aproximadamente ${payload.estimated_minutes} min.`
+      const tempo = payload.delivery_estimated_minutes
+        ? ` Chega em aproximadamente ${payload.delivery_estimated_minutes} min.`
         : "";
       return `Seu pedido já saiu para entrega!${tempo}`;
     }
