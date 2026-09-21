@@ -12,7 +12,7 @@ function hasOptionalFilling(flavorName: string) {
 
 export type SheetTarget = { kind: "pizza" } | { kind: "simple"; item: MenuItem };
 
-export type PizzaUnit = { flavors: Flavor[]; notes: string };
+export type PizzaUnit = { size: MenuItem; flavors: Flavor[]; notes: string };
 
 export default function CustomizationSheet({
   target,
@@ -31,7 +31,7 @@ export default function CustomizationSheet({
   cartCount: number;
   cartTotal: number;
   onClose: () => void;
-  onAddPizza: (params: { size: MenuItem; units: PizzaUnit[] }) => void;
+  onAddPizza: (params: { units: PizzaUnit[] }) => void;
   onAddSimpleItem: (params: {
     item: MenuItem;
     quantity: number;
@@ -41,16 +41,19 @@ export default function CustomizationSheet({
 }) {
   const isPizza = target.kind === "pizza";
 
-  // Pra pizza: "form" escolhe tamanho+quantidade, "flavors" pede o sabor de
-  // cada unidade (uma de cada vez, "Pizza 1 de N"), "added" é o resumo.
-  // Pra item simples (esfirra/bebida) só existe "form" e "added".
-  const [phase, setPhase] = useState<"form" | "flavors" | "added">("form");
-  const [sizeId, setSizeId] = useState<string | null>(null);
+  // Pra pizza: "form" só pergunta a quantidade de pizzas, "unit" pede
+  // tamanho + sabores + observação de cada unidade, uma de cada vez
+  // ("Pizza 1 de N"), "added" é o resumo. Pra item simples (esfirra/
+  // bebida) só existe "form" (quantidade + observação) e "added".
+  const [phase, setPhase] = useState<"form" | "unit" | "added">("form");
   const [quantity, setQuantity] = useState(1);
   const [unitIndex, setUnitIndex] = useState(0);
   const [units, setUnits] = useState<PizzaUnit[]>([]);
+
+  const [sizeId, setSizeId] = useState<string | null>(null);
   const [selectedFlavorIds, setSelectedFlavorIds] = useState<string[]>([]);
   const [justSelectedId, setJustSelectedId] = useState<string | null>(null);
+  const [trimmedWarning, setTrimmedWarning] = useState<string | null>(null);
   const [notes, setNotes] = useState("");
   const [addedSummary, setAddedSummary] = useState<{
     title: string;
@@ -94,6 +97,26 @@ export default function CustomizationSheet({
     });
   }
 
+  // Trocar de tamanho dentro da mesma unidade pode reduzir o limite de
+  // sabores (max_flavors é do tamanho, não do fluxo inteiro) — se os
+  // sabores já marcados passarem do novo limite, desmarca os excedentes
+  // e avisa por quê.
+  function selectUnitSize(newSizeId: string) {
+    const newSize = pizzaSizes.find((p) => p.id === newSizeId) ?? null;
+    setSizeId(newSizeId);
+
+    if (newSize?.max_flavors != null && selectedFlavorIds.length > newSize.max_flavors) {
+      const limit = newSize.max_flavors;
+      const removedCount = selectedFlavorIds.length - limit;
+      setSelectedFlavorIds((current) => current.slice(0, limit));
+      setTrimmedWarning(
+        `Removemos ${removedCount} sabor${removedCount > 1 ? "es" : ""}: ${newSize.name} aceita no máximo ${limit} sabor${limit === 1 ? "" : "es"}.`,
+      );
+    } else {
+      setTrimmedWarning(null);
+    }
+  }
+
   const showFillingChips = selectedFlavors.some((f) => hasOptionalFilling(f.name));
 
   const unitPrice = isPizza
@@ -114,50 +137,57 @@ export default function CustomizationSheet({
     setNotes("");
     setUnitIndex(0);
     setUnits([]);
+    setTrimmedWarning(null);
   }
 
-  function handleContinueToFlavors() {
-    if (!selectedSize) return;
+  function handleContinueToUnits() {
     setUnits([]);
     setUnitIndex(0);
+    setSizeId(null);
     setSelectedFlavorIds([]);
     setNotes("");
-    setPhase("flavors");
+    setTrimmedWarning(null);
+    setPhase("unit");
   }
 
   function repeatPreviousUnit() {
     if (unitIndex === 0) return;
     const prev = units[unitIndex - 1];
+    setSizeId(prev.size.id);
     setSelectedFlavorIds(prev.flavors.map((f) => f.id));
     setNotes(prev.notes);
+    setTrimmedWarning(null);
   }
 
   function handleUnitNext() {
     if (!selectedSize || selectedFlavors.length === 0) return;
-    const unit: PizzaUnit = { flavors: selectedFlavors, notes };
+    const unit: PizzaUnit = { size: selectedSize, flavors: selectedFlavors, notes };
     const completedUnits = [...units, unit];
 
     if (unitIndex < quantity - 1) {
       setUnits(completedUnits);
       setUnitIndex((i) => i + 1);
+      setSizeId(null);
       setSelectedFlavorIds([]);
       setNotes("");
+      setTrimmedWarning(null);
       return;
     }
 
-    onAddPizza({ size: selectedSize, units: completedUnits });
+    onAddPizza({ units: completedUnits });
 
+    const title = completedUnits.length > 1 ? "Pizzas adicionadas" : completedUnits[0].size.name;
     const detail =
       completedUnits.length > 1
-        ? `${completedUnits.length} pizzas configuradas`
+        ? completedUnits.map((u) => u.size.name).join(" + ")
         : completedUnits[0].flavors.map((f) => f.name).join(" + ");
     const price = completedUnits.reduce((sum, u) => {
       const extra =
         u.flavors.length > 0 ? Math.max(...u.flavors.map((f) => Number(f.extra_price))) : 0;
-      return sum + Number(selectedSize.base_price) + extra;
+      return sum + Number(u.size.base_price) + extra;
     }, 0);
 
-    setAddedSummary({ title: selectedSize.name, detail, price });
+    setAddedSummary({ title, detail, price });
     resetForm();
     setPhase("added");
   }
@@ -176,7 +206,7 @@ export default function CustomizationSheet({
   }
 
   const title = isPizza
-    ? phase === "flavors" && quantity > 1
+    ? phase === "unit" && quantity > 1
       ? `Pizza ${unitIndex + 1} de ${quantity}`
       : "Monte sua pizza"
     : target.kind === "simple"
@@ -195,6 +225,11 @@ export default function CustomizationSheet({
             {description && phase === "form" && (
               <p className="mt-space-xs font-body-sm text-body-sm text-on-surface-variant">
                 {description}
+              </p>
+            )}
+            {isPizza && phase === "form" && (
+              <p className="mt-space-xs font-body-sm text-body-sm text-on-surface-variant">
+                Quantas pizzas? Cada uma pode ter um tamanho e sabores diferentes.
               </p>
             )}
           </div>
@@ -254,7 +289,7 @@ export default function CustomizationSheet({
         ) : (
           <>
             <div className="flex flex-col gap-space-lg overflow-y-auto p-space-md">
-              {isPizza && phase === "form" && (
+              {isPizza && phase === "unit" && (
                 <section className="flex flex-col gap-space-xs">
                   <div className="flex items-center justify-between">
                     <span className="font-headline-md text-headline-md uppercase tracking-wider text-on-surface">
@@ -282,7 +317,7 @@ export default function CustomizationSheet({
                               name="tamanho"
                               className="h-4 w-4 cursor-pointer accent-primary"
                               checked={selected}
-                              onChange={() => setSizeId(size.id)}
+                              onChange={() => selectUnitSize(size.id)}
                             />
                             <span
                               className={`font-body-md text-body-md text-on-surface ${selected ? "font-semibold" : ""}`}
@@ -304,17 +339,24 @@ export default function CustomizationSheet({
                 </section>
               )}
 
-              {isPizza && phase === "flavors" && (
+              {isPizza && phase === "unit" && (
                 <section className="flex flex-col gap-space-xs">
                   <div className="flex items-center justify-between">
                     <span className="font-headline-md text-headline-md uppercase tracking-wider text-on-surface">
                       Escolha o(s) sabor(es)
                     </span>
                     <span className="font-label-sm text-label-sm text-primary">
-                      {selectedFlavorIds.length} de {maxFlavors} selecionado
-                      {selectedFlavorIds.length === 1 ? "" : "s"}
+                      {selectedSize
+                        ? `${selectedFlavorIds.length} de ${maxFlavors} selecionado${selectedFlavorIds.length === 1 ? "" : "s"}`
+                        : "ESCOLHA O TAMANHO PRIMEIRO"}
                     </span>
                   </div>
+
+                  {trimmedWarning && (
+                    <p className="rounded bg-primary/10 px-space-sm py-space-xs font-body-sm text-body-sm text-primary">
+                      {trimmedWarning}
+                    </p>
+                  )}
 
                   {([
                     ["Salgadas", salgadaFlavors],
@@ -327,7 +369,7 @@ export default function CustomizationSheet({
                         </span>
                         {groupFlavors.map((flavor) => {
                           const selected = selectedFlavorIds.includes(flavor.id);
-                          const disabled = !selected && limitReached;
+                          const disabled = !selectedSize || (!selected && limitReached);
                           return (
                             <label
                               key={flavor.id}
@@ -378,7 +420,7 @@ export default function CustomizationSheet({
                 </section>
               )}
 
-              {isPizza && phase === "flavors" && showFillingChips && (
+              {isPizza && phase === "unit" && showFillingChips && (
                 <section className="flex flex-col gap-space-xs">
                   <span className="font-headline-md text-headline-md uppercase tracking-wider text-on-surface">
                     Troca de recheio (opcional)
@@ -405,7 +447,7 @@ export default function CustomizationSheet({
                 </section>
               )}
 
-              {(!isPizza || phase === "flavors") && (
+              {(!isPizza || phase === "unit") && (
                 <section className="flex flex-col gap-space-xs">
                   <span className="font-headline-md text-headline-md uppercase tracking-wider text-on-surface">
                     Observações do preparo
@@ -421,7 +463,7 @@ export default function CustomizationSheet({
               )}
             </div>
 
-            {isPizza && phase === "flavors" ? (
+            {isPizza && phase === "unit" ? (
               <div className="flex items-center justify-between gap-space-md border-t border-surface-container-highest bg-surface-container p-space-md">
                 {unitIndex > 0 ? (
                   <button
@@ -438,7 +480,7 @@ export default function CustomizationSheet({
                 <button
                   type="button"
                   onClick={handleUnitNext}
-                  disabled={selectedFlavors.length === 0}
+                  disabled={!selectedSize || selectedFlavors.length === 0}
                   className="flex flex-1 items-center justify-center gap-space-xs rounded-full bg-primary px-space-md py-space-sm font-headline-md text-headline-md font-bold uppercase tracking-wider text-on-primary shadow-md transition-colors hover:bg-primary-container disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <span>{unitIndex < quantity - 1 ? "Próxima pizza" : "Adicionar à sacola"}</span>
@@ -472,9 +514,8 @@ export default function CustomizationSheet({
                 {isPizza ? (
                   <button
                     type="button"
-                    onClick={handleContinueToFlavors}
-                    disabled={!selectedSize}
-                    className="flex flex-1 items-center justify-center gap-space-xs rounded-full bg-primary px-space-md py-space-sm font-headline-md text-headline-md font-bold uppercase tracking-wider text-on-primary shadow-md transition-colors hover:bg-primary-container disabled:cursor-not-allowed disabled:opacity-40"
+                    onClick={handleContinueToUnits}
+                    className="flex flex-1 items-center justify-center gap-space-xs rounded-full bg-primary px-space-md py-space-sm font-headline-md text-headline-md font-bold uppercase tracking-wider text-on-primary shadow-md transition-colors hover:bg-primary-container"
                   >
                     Continuar
                   </button>

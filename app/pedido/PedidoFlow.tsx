@@ -113,8 +113,8 @@ export default function PedidoFlow() {
     return `${menuItemId}|${[...flavorIds].sort().join(",")}|${crustId ?? ""}|${notes}`;
   }
 
-  function addPizzaToCart(params: { size: MenuItem; units: PizzaUnit[] }) {
-    const { size, units } = params;
+  function addPizzaToCart(params: { units: PizzaUnit[] }) {
+    const { units } = params;
     setCart((current) => {
       const next = [...current];
 
@@ -122,7 +122,7 @@ export default function PedidoFlow() {
         const flavorIds = unit.flavors.map((f) => f.id);
         const notes = unit.notes.trim();
         const maxExtra = Math.max(...unit.flavors.map((f) => Number(f.extra_price)));
-        const key = pizzaUnitKey(size.id, flavorIds, undefined, notes);
+        const key = pizzaUnitKey(unit.size.id, flavorIds, undefined, notes);
 
         const existingIndex = next.findIndex(
           (item) =>
@@ -140,13 +140,13 @@ export default function PedidoFlow() {
           next.push({
             key: crypto.randomUUID(),
             kind: "pizza",
-            menu_item_id: size.id,
-            menu_item_name: size.name,
+            menu_item_id: unit.size.id,
+            menu_item_name: unit.size.name,
             flavor_ids: flavorIds,
             flavor_names: unit.flavors.map((f) => f.name),
             quantity: 1,
             item_notes: notes || undefined,
-            unit_price: Number(size.base_price) + maxExtra,
+            unit_price: Number(unit.size.base_price) + maxExtra,
           });
         }
       }
