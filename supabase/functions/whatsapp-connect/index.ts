@@ -103,6 +103,10 @@ serve(async (req) => {
   if (authError || !user) {
     return jsonResponse({ error: "unauthorized" }, 401);
   }
+  // Conta da cozinha não mexe no WhatsApp, mesmo chamando a API direto.
+  if (user.app_metadata?.role === "cozinha") {
+    return jsonResponse({ error: "forbidden" }, 403);
+  }
 
   let body: { action?: string };
   try {
