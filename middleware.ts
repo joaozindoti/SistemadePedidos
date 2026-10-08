@@ -11,12 +11,10 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const isLoginPage = pathname === "/admin/login";
   // O navegador busca esses arquivos sem sessão (prompt de instalação do PWA,
-  // registro do service worker), então não podem exigir autenticação.
+  // registro do service worker), então não podem exigir autenticação. Os
+  // ícones ficam em /brand, fora do matcher.
   const isPwaAsset =
-    pathname === "/admin/manifest.webmanifest" ||
-    pathname === "/admin/sw.js" ||
-    pathname === "/admin/icon-192" ||
-    pathname === "/admin/icon-512";
+    pathname === "/admin/manifest.webmanifest" || pathname === "/admin/sw.js";
 
   if (!user && pathname.startsWith("/admin") && !isLoginPage && !isPwaAsset) {
     const loginUrl = new URL("/admin/login", request.url);

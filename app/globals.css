@@ -60,6 +60,18 @@
   --color-outline: #9a907c;
   --color-outline-variant: #4e4635;
 
+  /* Alerta da comanda (pedido atrasado / observação do cliente) */
+  --color-alert: #ff6b5e;
+  --color-on-alert: #2b0400;
+  --color-alert-container: #4a1210;
+  --color-on-alert-container: #ffdad6;
+  --color-warn: #ffb95f;
+  --color-on-warn: #2a1700;
+
+  /* Papel da comanda e o "balcão" atrás dela */
+  --color-comanda: #1d1d20;
+  --color-comanda-page: #0b0b0c;
+
   /* Raio de borda */
   --radius: 0.125rem;
   --radius-lg: 0.25rem;
@@ -77,13 +89,18 @@
   --spacing-gutter: 1rem;
   --spacing-gutter-desktop: 1.5rem;
 
-  /* Famílias tipográficas semânticas */
-  --font-label-lg: var(--font-jetbrains-mono), ui-monospace, monospace;
-  --font-label-md: var(--font-work-sans), ui-sans-serif, sans-serif;
-  --font-label-sm: var(--font-jetbrains-mono), ui-monospace, monospace;
-  --font-body-lg: var(--font-work-sans), ui-sans-serif, sans-serif;
-  --font-body-md: var(--font-work-sans), ui-sans-serif, sans-serif;
-  --font-body-sm: var(--font-work-sans), ui-sans-serif, sans-serif;
+  /* Famílias tipográficas semânticas.
+   * Texto corrido em Atkinson Hyperlegible (desenhada pra leitura fácil:
+   * I/l/1 e 0/O inconfundíveis), títulos em Barlow Condensed. */
+  --font-label-lg: var(--font-atkinson-mono), ui-monospace, monospace;
+  --font-label-md: var(--font-atkinson), ui-sans-serif, sans-serif;
+  --font-label-sm: var(--font-atkinson-mono), ui-monospace, monospace;
+  --font-body-lg: var(--font-atkinson), ui-sans-serif, sans-serif;
+  --font-body-md: var(--font-atkinson), ui-sans-serif, sans-serif;
+  --font-body-sm: var(--font-atkinson), ui-sans-serif, sans-serif;
+  --font-sans: var(--font-atkinson), ui-sans-serif, sans-serif;
+  --font-mono: var(--font-atkinson-mono), ui-monospace, monospace;
+  --font-display: var(--font-barlow-condensed), ui-sans-serif, sans-serif;
   --font-headline-md: var(--font-barlow-condensed), ui-sans-serif, sans-serif;
   --font-headline-lg: var(--font-barlow-condensed), ui-sans-serif, sans-serif;
   --font-headline-lg-mobile: var(--font-barlow-condensed), ui-sans-serif, sans-serif;
@@ -91,13 +108,13 @@
   --font-headline-xl-mobile: var(--font-barlow-condensed), ui-sans-serif, sans-serif;
 
   /* Escala tipográfica semântica (tamanho + entrelinha + tracking + peso) */
-  --text-label-sm: 11px;
-  --text-label-sm--line-height: 14px;
+  --text-label-sm: 12px;
+  --text-label-sm--line-height: 16px;
   --text-label-sm--letter-spacing: 0.04em;
   --text-label-sm--font-weight: 500;
 
-  --text-label-md: 13px;
-  --text-label-md--line-height: 16px;
+  --text-label-md: 14px;
+  --text-label-md--line-height: 18px;
   --text-label-md--letter-spacing: 0.05em;
   --text-label-md--font-weight: 600;
 
@@ -106,16 +123,16 @@
   --text-label-lg--letter-spacing: -0.01em;
   --text-label-lg--font-weight: 600;
 
-  --text-body-sm: 12px;
-  --text-body-sm--line-height: 16px;
+  --text-body-sm: 14px;
+  --text-body-sm--line-height: 20px;
   --text-body-sm--font-weight: 400;
 
-  --text-body-md: 14px;
-  --text-body-md--line-height: 20px;
+  --text-body-md: 16px;
+  --text-body-md--line-height: 24px;
   --text-body-md--font-weight: 400;
 
-  --text-body-lg: 16px;
-  --text-body-lg--line-height: 24px;
+  --text-body-lg: 18px;
+  --text-body-lg--line-height: 26px;
   --text-body-lg--font-weight: 400;
 
   --text-headline-md: 22px;
@@ -142,6 +159,71 @@
   --text-headline-xl--line-height: 52px;
   --text-headline-xl--letter-spacing: 0.02em;
   --text-headline-xl--font-weight: 700;
+}
+
+/*
+ * Tema "preto no branco": alto contraste, sem dourado. Sobrescreve só as
+ * variáveis — todas as classes (bg-primary, text-on-surface...) seguem
+ * funcionando. Ligado por data-theme="light" no <html> (ver lib/theme.tsx).
+ */
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --color-primary: #111111;
+  --color-primary-container: #2e2e2e;
+  --color-on-primary: #ffffff;
+  --color-on-primary-container: #ffffff;
+  --color-primary-fixed: #111111;
+  --color-primary-fixed-dim: #2e2e2e;
+  --color-on-primary-fixed: #ffffff;
+  --color-surface-tint: #111111;
+
+  --color-secondary: #111111;
+  --color-secondary-container: #2e2e2e;
+  --color-on-secondary: #ffffff;
+  --color-on-secondary-container: #ffffff;
+
+  --color-tertiary: #111111;
+  --color-tertiary-container: #111111;
+  --color-on-tertiary: #ffffff;
+  --color-on-tertiary-container: #ffffff;
+
+  --color-error: #b3261e;
+  --color-error-container: #fde7e6;
+  --color-on-error: #ffffff;
+  --color-on-error-container: #5c0b07;
+
+  --color-alert: #b3261e;
+  --color-on-alert: #ffffff;
+  --color-alert-container: #111111;
+  --color-on-alert-container: #ffffff;
+  --color-warn: #111111;
+  --color-on-warn: #ffffff;
+
+  --color-comanda: #ffffff;
+  --color-comanda-page: #e6e6e6;
+
+  --color-background: #ffffff;
+  --color-on-background: #0a0a0a;
+  --color-surface: #ffffff;
+  --color-surface-dim: #f2f2f2;
+  --color-surface-bright: #ffffff;
+  --color-on-surface: #0a0a0a;
+  --color-on-surface-variant: #3b3b3b;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f6f6f6;
+  --color-surface-container: #eeeeee;
+  --color-surface-container-high: #e3e3e3;
+  --color-surface-container-highest: #cfcfcf;
+  --color-surface-variant: #e3e3e3;
+  --color-inverse-surface: #111111;
+  --color-inverse-on-surface: #ffffff;
+  --color-outline: #5c5c5c;
+  --color-outline-variant: #bdbdbd;
+}
+
+:root:not([data-theme="light"]) {
+  color-scheme: dark;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -224,4 +306,97 @@ body {
   textarea {
     font-size: 16px;
   }
+}
+
+/* ───────────── Comanda da cozinha ───────────── */
+
+/* Serrilhado de papel de comanda no topo e no rodapé do card. */
+.comanda-edge {
+  --serra: 10px;
+  -webkit-mask:
+    conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom / var(--serra) 51% repeat-x,
+    conic-gradient(from 135deg at top, #0000, #000 1deg 89deg, #0000 90deg) top / var(--serra) 51% repeat-x;
+  mask:
+    conic-gradient(from -45deg at bottom, #0000, #000 1deg 89deg, #0000 90deg) bottom / var(--serra) 51% repeat-x,
+    conic-gradient(from 135deg at top, #0000, #000 1deg 89deg, #0000 90deg) top / var(--serra) 51% repeat-x;
+}
+
+@keyframes comanda-late {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--color-alert) 0%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--color-alert) 45%, transparent);
+  }
+}
+
+.animate-comanda-late {
+  animation: comanda-late 1.6s ease-in-out infinite;
+}
+
+@keyframes comanda-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.animate-comanda-in {
+  animation: comanda-in 320ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+/*
+ * Impressão da comanda: só o .print-root (renderizado direto no <body> via
+ * portal) vai pro papel, em preto puro, no tamanho de bobina térmica de
+ * 80mm (também sai legível em A4).
+ */
+.print-root {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: 80mm auto;
+    margin: 3mm;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  body > *:not(.print-root) {
+    display: none !important;
+  }
+
+  .print-root {
+    display: block !important;
+    color: #000;
+    font-family: var(--font-atkinson), sans-serif;
+  }
+}
+
+/* Faíscas subindo no hero do cardápio */
+@keyframes ember {
+  0% {
+    transform: translateY(0) scale(1);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-90px) translateX(12px) scale(0.4);
+    opacity: 0;
+  }
+}
+
+.animate-ember {
+  animation: ember 4.2s ease-out infinite;
 }

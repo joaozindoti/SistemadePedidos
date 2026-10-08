@@ -1,8 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/browserClient";
 import { formatBRL, Icon } from "@/lib/ui";
+import { playNewOrderBeep, unlockAudioOnFirstTouch } from "@/lib/sound";
+import {
+  ComandaPrint,
+  PAYMENT_LABELS,
+  formatAddress,
+  orderNumberLabel,
+  printAfterRender,
+} from "./comanda";
 
 type OrderStatus =
   | "pendente"
@@ -17,13 +25,14 @@ interface QueueOrderItem {
   quantity: number;
   unit_price: number;
   item_notes: string | null;
-  menu_item: { name: string } | null;
+  menu_item: { name: string; category?: string } | null;
   crust: { name: string } | null;
   order_item_flavors: { flavor: { name: string } | null }[];
 }
 
 interface QueueOrder {
   id: string;
+  order_number?: number | null;
   status: OrderStatus;
   order_type: "entrega" | "retirada";
   payment_method: "dinheiro" | "cartao" | "pix";
@@ -41,31 +50,17 @@ interface QueueOrder {
   items: QueueOrderItem[];
 }
 
+// "*" pra não depender de a migration de order_number já estar aplicada.
 const ORDER_SELECT = `
-  id, status, order_type, payment_method, total, notes, estimated_minutes,
-  delivery_estimated_minutes, created_at,
-  address_street, address_number, address_complement, address_neighborhood, address_city,
+  *,
   customer:customers ( name, phone ),
   items:order_items (
     id, quantity, unit_price, item_notes,
-    menu_item:menu_items ( name ),
+    menu_item:menu_items ( name, category ),
     crust:crusts ( name ),
     order_item_flavors ( flavor:flavors ( name ) )
   )
 `;
-
-const PAYMENT_LABELS: Record<string, string> = {
-  dinheiro: "Dinheiro",
-  cartao: "Cartão na entrega",
-  pix: "Pix",
-};
-
-function formatAddress(order: QueueOrder): string | null {
-  if (!order.address_street) return null;
-  const line1 = `${order.address_street}, ${order.address_number ?? "s/n"}`;
-  const complement = order.address_complement ? ` - ${order.address_complement}` : "";
-  return `${line1}${complement}, ${order.address_neighborhood}, ${order.address_city}`;
-}
 
 const TABS: { status: OrderStatus; label: string }[] = [
   { status: "pendente", label: "Pendente" },
@@ -82,27 +77,6 @@ function timeAgo(createdAt: string): string {
   return rest > 0 ? `há ${hours}h ${rest}min` : `há ${hours}h`;
 }
 
-function playNewOrderBeep(ctx: AudioContext) {
-  const now = ctx.currentTime;
-  const notes: [number, number][] = [
-    [880, now],
-    [1175, now + 0.15],
-  ];
-  for (const [freq, start] of notes) {
-    const osc = ctx.createOscillator();
-    const gain = ctx.createGain();
-    osc.type = "sine";
-    osc.frequency.value = freq;
-    gain.gain.setValueAtTime(0.0001, start);
-    gain.gain.exponentialRampToValueAtTime(0.3, start + 0.01);
-    gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.12);
-    osc.connect(gain);
-    gain.connect(ctx.destination);
-    osc.start(start);
-    osc.stop(start + 0.14);
-  }
-}
-
 export default function OrderQueue() {
   const supabase = createClient();
 
@@ -115,32 +89,20 @@ export default function OrderQueue() {
   } | null>(null);
   const [estimateInput, setEstimateInput] = useState("");
   const [activeTab, setActiveTab] = useState<OrderStatus>("pendente");
+  const [printOrder, setPrintOrder] = useState<QueueOrder | null>(null);
   const [, setTick] = useState(0);
 
-  const audioCtxRef = useRef<AudioContext | null>(null);
-
-  function getAudioContext(): AudioContext {
-    if (!audioCtxRef.current) {
-      const Ctor =
-        window.AudioContext ||
-        (window as unknown as { webkitAudioContext: typeof AudioContext })
-          .webkitAudioContext;
-      audioCtxRef.current = new Ctor();
-    }
-    return audioCtxRef.current;
-  }
+  useEffect(() => unlockAudioOnFirstTouch(), []);
 
   useEffect(() => {
-    function unlockAudio() {
-      try {
-        getAudioContext().resume().catch(() => {});
-      } catch (err) {
-        console.log("Áudio ainda não pôde ser desbloqueado:", err);
-      }
+    if (!printOrder) return;
+    function clear() {
+      setPrintOrder(null);
     }
-    window.addEventListener("pointerdown", unlockAudio, { once: true });
-    return () => window.removeEventListener("pointerdown", unlockAudio);
-  }, []);
+    window.addEventListener("afterprint", clear);
+    printAfterRender();
+    return () => window.removeEventListener("afterprint", clear);
+  }, [printOrder]);
 
   useEffect(() => {
     const interval = setInterval(() => setTick((t) => t + 1), 30000);
@@ -225,11 +187,7 @@ export default function OrderQueue() {
               });
             }, 4000);
 
-            try {
-              playNewOrderBeep(getAudioContext());
-            } catch (err) {
-              console.log("Não foi possível tocar o som de novo pedido:", err);
-            }
+            playNewOrderBeep();
           },
         )
         .subscribe();
@@ -396,17 +354,36 @@ export default function OrderQueue() {
             }`}
           >
             <div className="flex items-start justify-between gap-space-sm">
-              <div className="min-w-0">
-                <p className="font-body-md font-semibold text-body-md text-on-surface">
-                  {order.customer?.name || "Sem nome"}
-                </p>
-                <p className="font-mono text-body-sm text-on-surface-variant">
-                  {order.customer?.phone}
-                </p>
+              <div className="flex min-w-0 items-center gap-space-sm">
+                <span className="flex h-12 min-w-12 shrink-0 flex-col items-center justify-center rounded-lg bg-primary px-1 leading-none text-on-primary">
+                  <span className="text-[10px] font-bold uppercase tracking-wider opacity-80">Nº</span>
+                  <span className="font-display text-2xl font-extrabold tabular-nums">
+                    {orderNumberLabel(order)}
+                  </span>
+                </span>
+                <div className="min-w-0">
+                  <p className="truncate font-body-md font-semibold text-body-md text-on-surface">
+                    {order.customer?.name || "Sem nome"}
+                  </p>
+                  <p className="font-mono text-body-sm text-on-surface-variant">
+                    {order.customer?.phone}
+                  </p>
+                </div>
               </div>
-              <span className="shrink-0 font-label-sm text-label-sm text-outline">
-                {timeAgo(order.created_at)}
-              </span>
+              <div className="flex shrink-0 items-center gap-space-xs">
+                <span className="font-label-sm text-label-sm text-outline">
+                  {timeAgo(order.created_at)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPrintOrder(order)}
+                  aria-label={`Imprimir comanda ${orderNumberLabel(order)}`}
+                  title="Imprimir comanda"
+                  className="flex h-9 w-9 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
+                >
+                  <Icon name="print" className="text-[20px]" />
+                </button>
+              </div>
             </div>
 
             <div className="flex flex-col divide-y divide-surface-container-high">
@@ -574,6 +551,8 @@ export default function OrderQueue() {
           </article>
         ))}
       </div>
+
+      <ComandaPrint order={printOrder} />
     </div>
   );
 }

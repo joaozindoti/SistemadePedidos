@@ -1,7 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Image from "next/image";
 import type { Flavor, MenuItem } from "@/lib/types";
+import { flavorImage, simpleItemImage } from "@/lib/productImages";
 import { formatBRL, Icon } from "./icons";
 
 const FILLING_CHIPS = ["Catupiry", "Cheddar"] as const;
@@ -213,11 +215,18 @@ export default function CustomizationSheet({
       ? target.item.name
       : "";
   const description = target.kind === "simple" ? target.item.description : null;
+  const headerImage =
+    target.kind === "simple" ? simpleItemImage(target.item.name, target.item.category) : null;
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/60 backdrop-blur-sm">
       <div className="mx-auto flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-t-xl bg-surface-container-lowest shadow-[0_4px_20px_rgba(0,0,0,0.7)]">
         <div className="flex items-start justify-between gap-space-sm border-b border-surface-container-highest bg-surface-container-low/60 p-space-md">
+          {headerImage && phase === "form" && (
+            <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl">
+              <Image src={headerImage} alt="" fill sizes="64px" className="object-cover" />
+            </div>
+          )}
           <div className="flex min-w-0 flex-1 flex-col">
             <h2 className="font-headline-lg text-headline-lg uppercase tracking-wide text-primary">
               {phase === "added" ? "Adicionado à sacola" : title}
@@ -273,7 +282,7 @@ export default function CustomizationSheet({
               <button
                 type="button"
                 onClick={onClose}
-                className="w-full rounded-full border border-flour/15 bg-surface-container py-space-sm text-center font-headline-md text-headline-md uppercase tracking-wider text-on-surface transition-colors hover:bg-surface-container-high"
+                className="w-full rounded-full border border-outline-variant bg-surface-container py-space-sm text-center font-headline-md text-headline-md uppercase tracking-wider text-on-surface transition-colors hover:bg-surface-container-high"
               >
                 Adicionar outro item
               </button>
@@ -315,7 +324,7 @@ export default function CustomizationSheet({
                             <input
                               type="radio"
                               name="tamanho"
-                              className="h-4 w-4 cursor-pointer accent-primary"
+                              className="h-5 w-5 shrink-0 cursor-pointer accent-primary"
                               checked={selected}
                               onChange={() => selectUnitSize(size.id)}
                             />
@@ -368,6 +377,7 @@ export default function CustomizationSheet({
                           {groupLabel}
                         </span>
                         {groupFlavors.map((flavor) => {
+                          const img = flavorImage(flavor.name);
                           const selected = selectedFlavorIds.includes(flavor.id);
                           const disabled = !selectedSize || (!selected && limitReached);
                           return (
@@ -384,12 +394,22 @@ export default function CustomizationSheet({
                               <div className="flex items-center gap-space-sm">
                                 <input
                                   type="checkbox"
-                                  className="h-4 w-4 cursor-pointer accent-primary"
+                                  className="h-5 w-5 shrink-0 cursor-pointer accent-primary"
                                   checked={selected}
                                   disabled={disabled}
                                   onChange={() => toggleFlavor(flavor)}
                                 />
-                                <span className="flex items-center gap-space-xs">
+                                <span className="relative flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-[50%] bg-[#0b0b0c]">
+                                  {img ? (
+                                    <Image src={img} alt="" fill sizes="44px" className="object-cover" />
+                                  ) : (
+                                    <Icon
+                                      name={flavor.flavor_type === "doce" ? "cake" : "local_pizza"}
+                                      className="text-[22px] text-[#e5b842]"
+                                    />
+                                  )}
+                                </span>
+                                <span className="flex flex-wrap items-center gap-space-xs">
                                   <span
                                     className={`font-body-md text-body-md text-on-surface ${selected ? "font-semibold" : ""}`}
                                   >
@@ -469,7 +489,7 @@ export default function CustomizationSheet({
                   <button
                     type="button"
                     onClick={repeatPreviousUnit}
-                    className="flex shrink-0 items-center gap-space-xs rounded-full border border-flour/15 px-space-sm py-space-sm font-label-md text-label-md uppercase tracking-wider text-on-surface-variant transition-colors hover:text-on-surface"
+                    className="flex shrink-0 items-center gap-space-xs rounded-full border border-outline-variant px-space-sm py-space-sm font-label-md text-label-md uppercase tracking-wider text-on-surface-variant transition-colors hover:text-on-surface"
                   >
                     <Icon name="content_copy" className="text-[16px]" />
                     Repetir anterior

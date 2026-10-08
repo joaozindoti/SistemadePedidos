@@ -12,20 +12,16 @@ function manifest(): MetadataRoute.Manifest {
     start_url: "/admin",
     scope: "/admin",
     display: "standalone",
-    background_color: "#131315",
-    theme_color: "#ffd56d",
+    background_color: "#0e0e10",
+    theme_color: "#0e0e10",
     icons: [
+      { src: "/brand/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+      { src: "/brand/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
       {
-        src: "/admin/icon-192",
-        sizes: "192x192",
-        type: "image/png",
-        purpose: "any",
-      },
-      {
-        src: "/admin/icon-512",
+        src: "/brand/icon-maskable-512.png",
         sizes: "512x512",
         type: "image/png",
-        purpose: "any",
+        purpose: "maskable",
       },
     ],
   };

@@ -214,11 +214,26 @@ serve(async (req) => {
       address_neighborhood: address?.neighborhood.trim() ?? null,
       address_city: address?.city.trim() ?? null,
     })
-    .select("id")
+    // "*" em vez de "id, order_number": continua funcionando se a função
+    // for publicada antes da migration que cria order_number.
+    .select("*")
     .single();
 
   if (orderError || !order) {
     return jsonResponse({ error: "Falha ao criar pedido" }, 500);
+  }
+
+  // Se um item ou sabor falhar, o pedido já gravado precisa sumir: senão fica
+  // um pedido "fantasma" em pendente e o cliente, vendo o erro, pede de novo.
+  // Tenta apagar duas vezes e, se ainda assim falhar, deixa o id no log da
+  // função pra limpeza manual.
+  async function rollbackOrder(orderId: string) {
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      const { error } = await supabase.from("orders").delete().eq("id", orderId);
+      if (!error) return;
+      console.error(`rollback do pedido ${orderId} falhou (tentativa ${attempt}):`, error);
+    }
+    console.error(`PEDIDO FANTASMA: ${orderId} ficou sem itens, apagar manualmente`);
   }
 
   for (const item of orderItemsToInsert) {
@@ -236,7 +251,7 @@ serve(async (req) => {
       .single();
 
     if (itemError || !insertedItem) {
-      await supabase.from("orders").delete().eq("id", order.id);
+      await rollbackOrder(order.id);
       return jsonResponse({ error: "Falha ao gravar itens do pedido" }, 500);
     }
 
@@ -250,11 +265,14 @@ serve(async (req) => {
         .insert(flavorRows);
 
       if (flavorError) {
-        await supabase.from("orders").delete().eq("id", order.id);
+        await rollbackOrder(order.id);
         return jsonResponse({ error: "Falha ao gravar sabores do pedido" }, 500);
       }
     }
   }
 
-  return jsonResponse({ order_id: order.id, total }, 200);
+  return jsonResponse(
+    { order_id: order.id, order_number: order.order_number ?? null, total },
+    200,
+  );
 });

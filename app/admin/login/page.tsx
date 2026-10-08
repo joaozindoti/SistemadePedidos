@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browserClient";
-import { Icon } from "@/lib/ui";
+import { ThemeToggle } from "@/lib/theme";
 
 export default function AdminLoginPage() {
   const router = useRouter();
@@ -35,12 +36,18 @@ export default function AdminLoginPage() {
   }
 
   return (
-    <div className="flex min-h-dvh flex-col items-center justify-center bg-surface px-margin">
-      <div className="flex h-14 w-14 items-center justify-center rounded-xl bg-surface-container-lowest">
-        <Icon name="local_pizza" className="text-primary text-[28px]" />
-      </div>
-      <h1 className="mt-space-md font-headline-lg text-headline-lg uppercase tracking-wide text-primary">
-        Painel Admin
+    <div className="relative flex min-h-dvh flex-col items-center justify-center bg-surface px-margin">
+      <ThemeToggle className="absolute right-margin top-margin" />
+      <Image
+        src="/brand/logo.png"
+        alt="Sidney & Shirley Pizzaria"
+        width={140}
+        height={140}
+        preload
+        className="h-36 w-36"
+      />
+      <h1 className="mt-space-md font-display text-4xl font-extrabold uppercase tracking-wide text-primary">
+        Painel
       </h1>
       <p className="mt-space-xs font-body-sm text-body-sm text-on-surface-variant">
         Sidney &amp; Shirley Pizzaria

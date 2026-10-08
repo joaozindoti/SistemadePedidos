@@ -135,7 +135,7 @@ export default function StatsPanel() {
       <button
         type="button"
         onClick={() => load()}
-        className="min-h-11 rounded-full border border-flour/15 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant transition-colors hover:text-on-surface"
+        className="min-h-11 rounded-full border border-outline-variant font-label-md text-label-md uppercase tracking-wider text-on-surface-variant transition-colors hover:text-on-surface"
       >
         Atualizar
       </button>

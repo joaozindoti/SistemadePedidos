@@ -84,6 +84,7 @@ export default function PedidoFlow() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [orderResult, setOrderResult] = useState<{
     order_id: string;
+    order_number: number | null;
     total: number;
   } | null>(null);
 
@@ -229,7 +230,11 @@ export default function PedidoFlow() {
     }
 
     if (data) {
-      setOrderResult({ order_id: data.order_id, total: data.total });
+      setOrderResult({
+        order_id: data.order_id,
+        order_number: data.order_number ?? null,
+        total: data.total,
+      });
       setView("success");
     }
   }
@@ -317,6 +322,7 @@ export default function PedidoFlow() {
       {view === "success" && orderResult && (
         <SuccessScreen
           orderId={orderResult.order_id}
+          orderNumber={orderResult.order_number}
           total={orderResult.total}
           onNewOrder={startOver}
         />

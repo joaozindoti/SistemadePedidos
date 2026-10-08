@@ -9,7 +9,7 @@ export const metadata: Metadata = {
     title: "Pedidos",
   },
   icons: {
-    apple: "/admin/icon-192",
+    apple: "/brand/icon-192.png",
   },
 };
 
