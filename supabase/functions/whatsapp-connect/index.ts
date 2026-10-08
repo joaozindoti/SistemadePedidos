@@ -103,8 +103,9 @@ serve(async (req) => {
   if (authError || !user) {
     return jsonResponse({ error: "unauthorized" }, 401);
   }
-  // Conta da cozinha não mexe no WhatsApp, mesmo chamando a API direto.
-  if (user.app_metadata?.role === "cozinha") {
+  // Só admin mexe no WhatsApp — cozinha ou conta sem cargo recebem 403,
+  // mesmo chamando a API direto.
+  if (user.app_metadata?.role !== "admin") {
     return jsonResponse({ error: "forbidden" }, 403);
   }
 

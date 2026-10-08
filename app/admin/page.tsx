@@ -26,8 +26,10 @@ export default function AdminQueuePage() {
   const supabase = createClient();
   const [section, setSection] = useState<Section>("fila");
   // null enquanto o cargo não foi lido, pra não piscar as abas do admin
-  // na tela da cozinha.
-  const [isCozinha, setIsCozinha] = useState<boolean | null>(null);
+  // na tela da cozinha. Conta sem cargo não tem acesso nenhum (a RLS
+  // também bloqueia; aqui é só pra mostrar o motivo em vez de tela vazia).
+  const [role, setRole] = useState<"admin" | "cozinha" | "nenhum" | null>(null);
+  const isCozinha = role === "cozinha";
 
   useEffect(() => {
     let cancelled = false;
@@ -36,7 +38,8 @@ export default function AdminQueuePage() {
         data: { user },
       } = await supabase.auth.getUser();
       if (cancelled) return;
-      setIsCozinha(user?.app_metadata?.role === "cozinha");
+      const appRole = user?.app_metadata?.role;
+      setRole(appRole === "admin" || appRole === "cozinha" ? appRole : "nenhum");
     })();
     return () => {
       cancelled = true;
@@ -50,8 +53,30 @@ export default function AdminQueuePage() {
     router.refresh();
   }
 
-  if (isCozinha === null) {
+  if (role === null) {
     return <div className="min-h-dvh bg-surface" />;
+  }
+
+  if (role === "nenhum") {
+    return (
+      <div className="flex min-h-dvh flex-col items-center justify-center gap-space-md bg-surface px-margin text-center">
+        <Image src="/brand/logo.png" alt="" width={112} height={112} className="h-28 w-28" />
+        <h1 className="font-display text-3xl font-extrabold uppercase text-on-surface">
+          Conta sem acesso
+        </h1>
+        <p className="max-w-sm text-on-surface-variant">
+          Essa conta ainda não tem cargo de admin ou de cozinha. Peça pro responsável liberar o
+          acesso e entre de novo.
+        </p>
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="min-h-11 rounded-full bg-primary px-space-lg font-label-md text-label-md font-bold uppercase tracking-wider text-on-primary"
+        >
+          Sair
+        </button>
+      </div>
+    );
   }
 
   return (

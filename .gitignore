@@ -43,3 +43,6 @@ next-env.d.ts
 # supabase CLI local cache (machine-specific, not needed for reproducibility)
 supabase/.temp
 supabase/.branches
+
+# capturas/logs do Playwright MCP
+.playwright-mcp/
