@@ -431,6 +431,18 @@ export default function MenuScreen({
             <Icon name="chat" className="text-[18px]" />
             WhatsApp: (99) 98457-8154
           </a>
+          <p className="mt-space-xs text-[11px] text-outline">
+            Fotos das bebidas: E. R. Vicol (CC BY 2.0), Cabeza2000 (CC BY-SA 4.0), MisterSanderson e{" "}
+            <a
+              href="https://world.openfoodfacts.org"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="underline underline-offset-2"
+            >
+              Open Food Facts
+            </a>{" "}
+            (CC BY-SA), via Wikimedia Commons
+          </p>
         </div>
       </footer>
     </div>
