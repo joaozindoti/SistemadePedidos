@@ -25,16 +25,20 @@ export function flavorImage(name: string): string | null {
 export const PIZZA_IMAGE = "/cardapio/pizza.webp";
 export const ESFIRRA_IMAGE = "/cardapio/esfirra.webp";
 
-// Bebidas usam foto real do rótulo (Wikimedia Commons / Open Food Facts,
-// licenças livres — créditos em public/cardapio/bebidas/CREDITOS.txt e no
-// rodapé): lata pra 350ml, garrafa pra 1L/2L.
+// Bebidas usam a foto do produto (enviada pela pizzaria), uma por tamanho:
+// lata 350ml, garrafa 1L e garrafa 2L.
 export function simpleItemImage(name: string, category: string): string | null {
   if (category === "esfirra") return ESFIRRA_IMAGE;
   if (category !== "bebida") return null;
   const n = normalize(name);
-  const pack = n.includes("350") ? "lata" : "garrafa";
-  if (n.includes("coca")) return `/cardapio/bebidas/coca-${pack}.webp`;
-  if (n.includes("fanta") || n.includes("laranja")) return `/cardapio/bebidas/fanta-${pack}.webp`;
-  if (n.includes("guarana")) return `/cardapio/bebidas/guarana-${pack}.webp`;
+  const size = n.includes("350") ? "lata" : n.includes("2 litro") || n.includes("2l") ? "2l" : "1l";
+  if (n.includes("coca")) return `/cardapio/bebidas/coca-${size}.webp`;
+  if (n.includes("fanta") || n.includes("laranja")) return `/cardapio/bebidas/fanta-${size}.webp`;
+  if (n.includes("guarana")) return `/cardapio/bebidas/guarana-${size}.webp`;
   return null;
+}
+
+// Foto de produto (fundo branco) aparece inteira; foto de prato preenche.
+export function isPackshot(src: string | null): boolean {
+  return Boolean(src?.includes("/cardapio/bebidas/"));
 }

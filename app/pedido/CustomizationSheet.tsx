@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Image from "next/image";
 import type { Flavor, MenuItem } from "@/lib/types";
-import { flavorImage, simpleItemImage } from "@/lib/productImages";
+import { flavorImage, isPackshot, simpleItemImage } from "@/lib/productImages";
 import { formatBRL, Icon } from "./icons";
 
 const FILLING_CHIPS = ["Catupiry", "Cheddar"] as const;
@@ -223,8 +223,16 @@ export default function CustomizationSheet({
       <div className="mx-auto flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-t-xl bg-surface-container-lowest shadow-[0_4px_20px_rgba(0,0,0,0.7)]">
         <div className="flex items-start justify-between gap-space-sm border-b border-surface-container-highest bg-surface-container-low/60 p-space-md">
           {headerImage && phase === "form" && (
-            <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl">
-              <Image src={headerImage} alt="" fill sizes="64px" className="object-cover" />
+            <div
+              className={`relative h-16 w-16 shrink-0 overflow-hidden rounded-xl ${isPackshot(headerImage) ? "bg-white" : ""}`}
+            >
+              <Image
+                src={headerImage}
+                alt=""
+                fill
+                sizes="64px"
+                className={isPackshot(headerImage) ? "object-contain p-1" : "object-cover"}
+              />
             </div>
           )}
           <div className="flex min-w-0 flex-1 flex-col">

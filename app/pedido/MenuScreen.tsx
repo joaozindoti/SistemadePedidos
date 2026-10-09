@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import Image from "next/image";
 import type { Flavor, MenuItem } from "@/lib/types";
-import { flavorImage, PIZZA_IMAGE, simpleItemImage } from "@/lib/productImages";
+import { flavorImage, isPackshot, PIZZA_IMAGE, simpleItemImage } from "@/lib/productImages";
 import { ThemeToggle } from "@/lib/theme";
 import BrandHero from "./BrandHero";
 import { formatBRL, Icon } from "./icons";
@@ -37,9 +37,19 @@ function shortSizeName(name: string): string {
 
 function ProductThumb({ src, icon, alt }: { src: string | null; icon: string; alt: string }) {
   return (
-    <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-xl bg-surface-container-high">
+    <div
+      className={`relative h-24 w-24 shrink-0 overflow-hidden rounded-xl ${
+        isPackshot(src) ? "bg-white" : "bg-surface-container-high"
+      }`}
+    >
       {src ? (
-        <Image src={src} alt={alt} fill sizes="96px" className="object-cover" />
+        <Image
+          src={src}
+          alt={alt}
+          fill
+          sizes="96px"
+          className={isPackshot(src) ? "object-contain p-0.5" : "object-cover"}
+        />
       ) : (
         <div className="flex h-full w-full items-center justify-center">
           <Icon name={icon} className="text-[36px] text-outline" />
@@ -431,18 +441,6 @@ export default function MenuScreen({
             <Icon name="chat" className="text-[18px]" />
             WhatsApp: (99) 98457-8154
           </a>
-          <p className="mt-space-xs text-[11px] text-outline">
-            Fotos das bebidas: E. R. Vicol (CC BY 2.0), Cabeza2000 (CC BY-SA 4.0), MisterSanderson e{" "}
-            <a
-              href="https://world.openfoodfacts.org"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="underline underline-offset-2"
-            >
-              Open Food Facts
-            </a>{" "}
-            (CC BY-SA), via Wikimedia Commons
-          </p>
         </div>
       </footer>
     </div>
