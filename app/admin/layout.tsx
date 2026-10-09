@@ -8,7 +8,10 @@ export const metadata: Metadata = {
     statusBarStyle: "black-translucent",
     title: "Pedidos",
   },
+  // Declarar `icons` aqui substitui o favicon do layout raiz (app/icon.png)
+  // em todo o /admin, então o favicon precisa ser repetido.
   icons: {
+    icon: [{ url: "/brand/favicon-48.png", sizes: "48x48", type: "image/png" }],
     apple: "/brand/icon-192.png",
   },
 };
