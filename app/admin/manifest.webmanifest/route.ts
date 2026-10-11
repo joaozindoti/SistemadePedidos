@@ -8,7 +8,9 @@ import type { MetadataRoute } from "next";
 function manifest(): MetadataRoute.Manifest {
   return {
     name: "Painel Sidney & Shirley",
-    short_name: "Pedidos",
+    short_name: "Painel S&S",
+    id: "/admin",
+    description: "Pedidos, cozinha e cardápio da Sidney & Shirley Pizzaria.",
     start_url: "/admin",
     scope: "/admin",
     display: "standalone",

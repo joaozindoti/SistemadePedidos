@@ -7,6 +7,7 @@ import { playNewOrderBeep, unlockAudioOnFirstTouch } from "@/lib/sound";
 import {
   ComandaPrint,
   PAYMENT_LABELS,
+  changeLabel,
   formatAddress,
   orderNumberLabel,
   printAfterRender,
@@ -37,6 +38,7 @@ interface QueueOrder {
   order_type: "entrega" | "retirada";
   payment_method: "dinheiro" | "cartao" | "pix";
   total: number;
+  change_for?: number | null;
   notes: string | null;
   estimated_minutes: number | null;
   delivery_estimated_minutes: number | null;
@@ -415,6 +417,12 @@ export default function OrderQueue() {
                 {formatAddress(order) ? ` · ${formatAddress(order)}` : ""}
               </p>
               <p>{PAYMENT_LABELS[order.payment_method] ?? order.payment_method}</p>
+              {changeLabel(order) && (
+                <p className="flex items-center gap-space-xs rounded bg-primary/10 px-space-xs py-0.5 font-semibold text-on-surface">
+                  <Icon name="payments" className="text-[16px] text-primary" />
+                  {changeLabel(order)}
+                </p>
+              )}
               {order.notes && <p>Obs: {order.notes}</p>}
               {order.estimated_minutes !== null && (
                 <p className="text-primary">

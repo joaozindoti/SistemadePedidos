@@ -3,9 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import type { Address, CartItem, Flavor, MenuItem } from "@/lib/types";
+import { formatHora, useLojaStatus } from "@/lib/loja";
 import MenuScreen from "./MenuScreen";
 import CustomizationSheet, { type PizzaUnit, type SheetTarget } from "./CustomizationSheet";
-import CheckoutScreen, { type PaymentMethod } from "./CheckoutScreen";
+import CheckoutScreen, { parseMoney, type PaymentMethod } from "./CheckoutScreen";
 import SuccessScreen from "./SuccessScreen";
 import ErrorScreen from "./ErrorScreen";
 
@@ -79,6 +80,15 @@ export default function PedidoFlow() {
     null,
   );
   const [orderNotes, setOrderNotes] = useState("");
+  // Troco (só dinheiro): "" = ainda não respondeu, "sem" = não precisa,
+  // ou o valor digitado ("100", "50,00").
+  const [changeFor, setChangeFor] = useState("");
+
+  const { status: loja, refresh: refreshLoja } = useLojaStatus(supabase);
+  const lojaFechada = loja?.aberta === false;
+  const horarioTexto = loja?.config
+    ? `das ${formatHora(loja.config.abre_as)} às ${formatHora(loja.config.fecha_as)}`
+    : null;
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -179,7 +189,7 @@ export default function PedidoFlow() {
   }
 
   async function confirmOrder() {
-    if (!orderType || !paymentMethod) return;
+    if (!orderType || !paymentMethod || lojaFechada) return;
     setSubmitting(true);
     setSubmitError(null);
 
@@ -199,6 +209,10 @@ export default function PedidoFlow() {
               }
             : undefined,
         payment_method: paymentMethod,
+        change_for:
+          paymentMethod === "dinheiro" && changeFor && changeFor !== "sem"
+            ? (parseMoney(changeFor) ?? undefined)
+            : undefined,
         notes: orderNotes.trim() || undefined,
         items: cart.map((item) => ({
           menu_item_id: item.menu_item_id,
@@ -226,6 +240,8 @@ export default function PedidoFlow() {
       }
       setSubmitError(message);
       setView("error");
+      // Se foi recusado por horário, o cardápio passa a mostrar "fechado".
+      refreshLoja();
       return;
     }
 
@@ -247,6 +263,7 @@ export default function PedidoFlow() {
     setAddress({ street: "", number: "", complement: "", neighborhood: "", city: "" });
     setPaymentMethod(null);
     setOrderNotes("");
+    setChangeFor("");
     setOrderResult(null);
     setSubmitError(null);
     setView("menu");
@@ -290,8 +307,10 @@ export default function PedidoFlow() {
           minPizzaPrice={minPizzaPrice}
           cartCount={cart.length}
           cartTotal={total}
-          onSelectPizza={() => setSheetTarget({ kind: "pizza" })}
-          onSelectSimpleItem={(item) => setSheetTarget({ kind: "simple", item })}
+          lojaFechada={lojaFechada}
+          horarioTexto={horarioTexto}
+          onSelectPizza={() => !lojaFechada && setSheetTarget({ kind: "pizza" })}
+          onSelectSimpleItem={(item) => !lojaFechada && setSheetTarget({ kind: "simple", item })}
           onOpenCart={() => setView("checkout")}
         />
       )}
@@ -310,6 +329,10 @@ export default function PedidoFlow() {
           onAddressChange={(patch) => setAddress((current) => ({ ...current, ...patch }))}
           paymentMethod={paymentMethod}
           onPaymentMethodChange={setPaymentMethod}
+          changeFor={changeFor}
+          onChangeForChange={setChangeFor}
+          lojaFechada={lojaFechada}
+          horarioTexto={horarioTexto}
           orderNotes={orderNotes}
           onOrderNotesChange={setOrderNotes}
           total={total}

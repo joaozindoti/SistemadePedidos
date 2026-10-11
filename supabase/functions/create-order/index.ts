@@ -27,6 +27,8 @@ interface CreateOrderBody {
   order_type: "entrega" | "retirada";
   address?: AddressInput;
   payment_method: "dinheiro" | "cartao" | "pix";
+  // Só pra dinheiro: quanto o cliente vai entregar ("troco para R$ 100").
+  change_for?: number | null;
   notes?: string;
   items: OrderItemInput[];
 }
@@ -101,6 +103,18 @@ serve(async (req) => {
   }
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+
+  // O cardápio já bloqueia fora do horário, mas a página pode ter ficado
+  // aberta desde antes das 23h — a palavra final é daqui.
+  const { data: aberta, error: horarioError } = await supabase.rpc("loja_aberta");
+  if (horarioError) {
+    console.error("Falha ao consultar horário de funcionamento:", horarioError);
+  } else if (aberta === false) {
+    return jsonResponse(
+      { error: "A pizzaria está fechada agora. Volte no nosso horário de funcionamento!" },
+      409,
+    );
+  }
 
   const { data: customer, error: customerError } = await supabase
     .from("customers")
@@ -200,12 +214,29 @@ serve(async (req) => {
 
   const address = body.order_type === "entrega" ? body.address : undefined;
 
+  let changeFor: number | null = null;
+  if (body.payment_method === "dinheiro" && body.change_for != null) {
+    const value = Number(body.change_for);
+    if (!Number.isFinite(value) || value <= 0) {
+      return jsonResponse({ error: "Valor do troco inválido" }, 400);
+    }
+    // Centavos pra não esbarrar em 49.99999 < 50.
+    if (Math.round(value * 100) < Math.round(total * 100)) {
+      return jsonResponse(
+        { error: `O troco precisa ser para um valor igual ou maior que o total (${total.toFixed(2).replace(".", ",")})` },
+        400,
+      );
+    }
+    changeFor = Math.round(value * 100) / 100;
+  }
+
   const { data: order, error: orderError } = await supabase
     .from("orders")
     .insert({
       customer_id: customer.id,
       order_type: body.order_type,
       payment_method: body.payment_method,
+      change_for: changeFor,
       notes: body.notes ?? null,
       total,
       address_street: address?.street.trim() ?? null,

@@ -5,6 +5,7 @@ import Image from "next/image";
 import type { Flavor, MenuItem } from "@/lib/types";
 import { flavorImage, isPackshot, PIZZA_IMAGE, simpleItemImage } from "@/lib/productImages";
 import { ThemeToggle } from "@/lib/theme";
+import { InstallAppBanner } from "@/lib/install";
 import BrandHero from "./BrandHero";
 import { formatBRL, Icon } from "./icons";
 
@@ -67,6 +68,8 @@ export default function MenuScreen({
   minPizzaPrice,
   cartCount,
   cartTotal,
+  lojaFechada,
+  horarioTexto,
   onSelectPizza,
   onSelectSimpleItem,
   onOpenCart,
@@ -78,6 +81,8 @@ export default function MenuScreen({
   minPizzaPrice: number | null;
   cartCount: number;
   cartTotal: number;
+  lojaFechada: boolean;
+  horarioTexto: string | null;
   onSelectPizza: () => void;
   onSelectSimpleItem: (item: MenuItem) => void;
   onOpenCart: () => void;
@@ -192,7 +197,29 @@ export default function MenuScreen({
       </header>
 
       <main className="mx-auto w-full max-w-lg px-margin pt-20">
-        <BrandHero onOrderNow={onSelectPizza} />
+        {lojaFechada && (
+          <div
+            role="status"
+            className="mb-space-md flex items-start gap-space-sm rounded-2xl border border-outline-variant bg-surface-container-low p-space-md"
+          >
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[50%] bg-primary/15 text-primary">
+              <Icon name="bedtime" className="text-[24px]" />
+            </span>
+            <div>
+              <p className="font-display text-2xl font-extrabold uppercase leading-tight text-on-surface">
+                Estamos fechados agora
+              </p>
+              <p className="font-body-md text-body-md text-on-surface-variant">
+                {horarioTexto ? `Funcionamos ${horarioTexto}. ` : ""}Dá uma olhada no cardápio e volta
+                no nosso horário pra pedir!
+              </p>
+            </div>
+          </div>
+        )}
+
+        <BrandHero onOrderNow={onSelectPizza} fechado={lojaFechada} />
+
+        <InstallAppBanner />
 
         <div className="sticky top-16 z-30 -mx-margin mt-space-md flex flex-col gap-space-sm bg-surface/95 px-margin pb-space-xs pt-space-sm backdrop-blur">
           <div className="relative flex items-center">
@@ -313,8 +340,8 @@ export default function MenuScreen({
                         onClick={onSelectPizza}
                         className="mt-space-xs flex min-h-12 w-full items-center justify-center gap-space-xs rounded-full bg-primary font-display text-xl font-extrabold uppercase tracking-wide text-on-primary transition-colors hover:bg-primary-container"
                       >
-                        <Icon name="add" className="text-[22px]" />
-                        Montar minha pizza
+                        <Icon name={lojaFechada ? "schedule" : "add"} className="text-[22px]" />
+                        {lojaFechada ? "Fechado agora" : "Montar minha pizza"}
                       </button>
                     </div>
                   )}
@@ -385,9 +412,11 @@ export default function MenuScreen({
                         {formatBRL(Number(item.base_price))}
                       </span>
                     </div>
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-on-primary">
-                      <Icon name="add" className="text-[22px]" />
-                    </span>
+                    {!lojaFechada && (
+                      <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-primary text-on-primary">
+                        <Icon name="add" className="text-[22px]" />
+                      </span>
+                    )}
                   </button>
                 ))}
               </div>

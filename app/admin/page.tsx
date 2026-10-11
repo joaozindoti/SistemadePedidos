@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/browserClient";
 import { Icon } from "@/lib/ui";
 import { ThemeToggle } from "@/lib/theme";
+import { InstallAppButton } from "@/lib/install";
 import OrderQueue from "./OrderQueue";
 import WhatsAppPanel from "./WhatsAppPanel";
 import StatsPanel from "./StatsPanel";
@@ -103,6 +104,7 @@ export default function AdminQueuePage() {
             </div>
           </div>
           <div className="flex items-center gap-space-xs">
+            <InstallAppButton />
             <ThemeToggle />
             <button
               type="button"

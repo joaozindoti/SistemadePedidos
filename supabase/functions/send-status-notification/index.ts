@@ -53,7 +53,7 @@ function formatOrderItemsList(items: OrderItemRow[]): string {
     .join("\n");
 }
 
-function paymentLine(paymentMethod: string): string {
+function paymentLine(paymentMethod: string, total: number, changeFor: number | null): string {
   if (paymentMethod === "pix") {
     return `Pagamento via Pix: chave ${PIX_KEY} (envie o comprovante aqui no WhatsApp)`;
   }
@@ -61,6 +61,9 @@ function paymentLine(paymentMethod: string): string {
     return "Pagamento no cartão, na entrega ou na retirada.";
   }
   if (paymentMethod === "dinheiro") {
+    if (changeFor && changeFor > total) {
+      return `Pagamento em dinheiro. Troco para ${formatBRL(changeFor)} (levamos ${formatBRL(changeFor - total)} de troco).`;
+    }
     return "Pagamento em dinheiro, na entrega ou na retirada.";
   }
   return "";
@@ -75,7 +78,7 @@ async function buildMessage(
       .from("orders")
       .select(
         `
-        total, payment_method,
+        total, payment_method, change_for,
         order_items (
           quantity,
           menu_item:menu_items ( name ),
@@ -98,7 +101,11 @@ async function buildMessage(
     const itemsList = formatOrderItemsList(
       (order.order_items ?? []) as unknown as OrderItemRow[],
     );
-    const pagamento = paymentLine(order.payment_method as string);
+    const pagamento = paymentLine(
+      order.payment_method as string,
+      Number(order.total),
+      order.change_for == null ? null : Number(order.change_for),
+    );
 
     const lines = ["Seu pedido foi confirmado e está sendo preparado!"];
     if (payload.estimated_minutes) {

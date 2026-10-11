@@ -10,6 +10,30 @@ const EVOLUTION_INSTANCE_NAME = Deno.env.get("EVOLUTION_INSTANCE_NAME")!;
 const WHATSAPP_WEBHOOK_SECRET = Deno.env.get("WHATSAPP_WEBHOOK_SECRET")!;
 const CARDAPIO_LINK = "https://sistemade-pedidos.vercel.app/pedido";
 
+interface EvolutionWebhookBody {
+  data?: { key?: { remoteJid?: string; fromMe?: boolean } };
+}
+
+// "18:00:00" → "18h", "18:30:00" → "18h30"
+function formatHour(time: string): string {
+  const [h, m] = time.split(":");
+  return m && m !== "00" ? `${Number(h)}h${m}` : `${Number(h)}h`;
+}
+
+async function sendText(number: string, text: string) {
+  const res = await fetch(`${EVOLUTION_API_URL}/message/sendText/${EVOLUTION_INSTANCE_NAME}`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      apikey: EVOLUTION_API_KEY,
+    },
+    body: JSON.stringify({ number, text }),
+  });
+  if (!res.ok) {
+    console.error("Evolution API recusou a mensagem:", res.status, await res.text());
+  }
+}
+
 function normalizePhone(raw: string): string {
   const digits = raw.replace(/\D/g, "");
   if (digits.length <= 11 && !digits.startsWith("55")) {
@@ -28,7 +52,7 @@ serve(async (req) => {
     return new Response("unauthorized", { status: 401 });
   }
 
-  let body: any;
+  let body: EvolutionWebhookBody;
   try {
     body = await req.json();
   } catch {
@@ -81,17 +105,41 @@ serve(async (req) => {
     }
   }
 
-  await fetch(`${EVOLUTION_API_URL}/message/sendText/${EVOLUTION_INSTANCE_NAME}`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      apikey: EVOLUTION_API_KEY,
-    },
-    body: JSON.stringify({
-      number: phone,
-      text: `Oi! Monta seu pedido aqui: ${CARDAPIO_LINK}`,
-    }),
-  });
+  // Fora do horário: um aviso de "fechado" na primeira mensagem da noite e
+  // depois silêncio — sem mandar link de cardápio que não vai aceitar pedido.
+  const { data: aberta, error: horarioError } = await supabase.rpc("loja_aberta");
+  if (horarioError) {
+    console.error("Falha ao consultar horário no webhook do WhatsApp:", horarioError);
+  }
+  if (aberta === false) {
+    const { data: deveAvisar, error: avisoError } = await supabase.rpc(
+      "registrar_aviso_fechado",
+      { p_phone: normalizedPhone },
+    );
+    if (avisoError) {
+      console.error("Falha ao registrar aviso de fechado:", avisoError);
+      return new Response("ok", { status: 200 });
+    }
+    if (deveAvisar) {
+      const { data: config } = await supabase
+        .from("loja_config")
+        .select("abre_as, fecha_as")
+        .eq("id", 1)
+        .maybeSingle();
+      const horario = config
+        ? ` Nosso horário é das ${formatHour(config.abre_as)} às ${formatHour(config.fecha_as)}.`
+        : "";
+      await sendText(
+        phone,
+        `Oi! A Sidney & Shirley Pizzaria já está fechada no momento. 🌙${horario}
+
+Amanhã tem pizza quentinha te esperando! 🍕`,
+      );
+    }
+    return new Response("ok", { status: 200 });
+  }
+
+  await sendText(phone, `Oi! Monta seu pedido aqui: ${CARDAPIO_LINK}`);
 
   return new Response("ok", { status: 200 });
 });

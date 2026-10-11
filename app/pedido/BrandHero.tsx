@@ -35,7 +35,13 @@ const FEATURES = [
   { icon: "local_fire_department", label: "Forno a lenha" },
 ];
 
-export default function BrandHero({ onOrderNow }: { onOrderNow: () => void }) {
+export default function BrandHero({
+  onOrderNow,
+  fechado = false,
+}: {
+  onOrderNow: () => void;
+  fechado?: boolean;
+}) {
   return (
     <section className="relative isolate overflow-hidden rounded-2xl bg-[#0b0b0c] text-[#f3eee2] shadow-[0_12px_40px_rgba(0,0,0,0.45)]">
       {/* brilho do forno atrás do logo */}
@@ -102,8 +108,8 @@ export default function BrandHero({ onOrderNow }: { onOrderNow: () => void }) {
             onClick={onOrderNow}
             className="mt-1 flex items-center gap-space-xs rounded-full bg-[#e5b842] px-space-lg py-space-sm font-display text-2xl font-extrabold uppercase tracking-wide text-[#1d1500] shadow-[0_6px_20px_rgba(229,184,66,0.35)] transition-transform hover:bg-[#ffd56d] active:scale-[0.98]"
           >
-            Peça já a sua
-            <Icon name="arrow_forward" className="text-[22px]" />
+            {fechado ? "Fechado agora" : "Peça já a sua"}
+            <Icon name={fechado ? "bedtime" : "arrow_forward"} className="text-[22px]" />
           </button>
         </div>
         <Image

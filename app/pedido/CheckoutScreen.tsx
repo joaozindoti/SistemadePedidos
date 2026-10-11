@@ -2,8 +2,20 @@
 
 import type { Address, CartItem } from "@/lib/types";
 import { formatBRL, Icon } from "./icons";
+import { parseMoney as parseMoneyAny } from "@/lib/ui";
+
+// Troco precisa ser positivo; o parse compartilhado aceita zero (preço grátis).
+export function parseMoney(raw: string): number | null {
+  const n = parseMoneyAny(raw);
+  return n !== null && n > 0 ? n : null;
+}
 
 export type PaymentMethod = "dinheiro" | "cartao" | "pix";
+
+// Notas comuns acima do total, pros atalhos "R$ 50 / R$ 100".
+function changeSuggestions(total: number): number[] {
+  return [10, 20, 50, 100, 200].filter((v) => v > total).slice(0, 3);
+}
 
 const PAYMENT_OPTIONS: { value: PaymentMethod; label: string }[] = [
   { value: "dinheiro", label: "Dinheiro" },
@@ -26,6 +38,10 @@ export default function CheckoutScreen({
   onPaymentMethodChange,
   orderNotes,
   onOrderNotesChange,
+  changeFor,
+  onChangeForChange,
+  lojaFechada,
+  horarioTexto,
   total,
   submitting,
   onBack,
@@ -45,11 +61,19 @@ export default function CheckoutScreen({
   onPaymentMethodChange: (method: PaymentMethod) => void;
   orderNotes: string;
   onOrderNotesChange: (value: string) => void;
+  changeFor: string;
+  onChangeForChange: (value: string) => void;
+  lojaFechada: boolean;
+  horarioTexto: string | null;
   total: number;
   submitting: boolean;
   onBack: () => void;
   onConfirm: () => void;
 }) {
+  const changeValue = changeFor === "sem" ? null : parseMoney(changeFor);
+  const changeTooLow = changeValue !== null && Math.round(changeValue * 100) < Math.round(total * 100);
+  const changeAnswered = changeFor === "sem" || (changeValue !== null && !changeTooLow);
+
   const canConfirm =
     cart.length > 0 &&
     customerName.trim().length > 0 &&
@@ -61,6 +85,8 @@ export default function CheckoutScreen({
         address.neighborhood.trim().length > 0 &&
         address.city.trim().length > 0)) &&
     paymentMethod !== null &&
+    (paymentMethod !== "dinheiro" || changeAnswered) &&
+    !lojaFechada &&
     !submitting;
 
   return (
@@ -80,6 +106,16 @@ export default function CheckoutScreen({
       </header>
 
       <main className="mx-auto w-full max-w-lg px-margin pt-24">
+        {lojaFechada && (
+          <p
+            role="alert"
+            className="mb-space-md flex items-start gap-space-sm rounded-lg bg-error-container px-space-md py-space-sm font-body-md text-body-md font-semibold text-on-error-container"
+          >
+            <Icon name="schedule" className="mt-0.5 text-[20px]" />
+            Estamos fechados agora{horarioTexto ? ` — funcionamos ${horarioTexto}` : ""}. Não dá pra
+            confirmar pedidos neste momento.
+          </p>
+        )}
         <section className="flex flex-col divide-y divide-surface-container-high">
           {cart.map((item) => (
             <div key={item.key} className="flex items-start justify-between gap-space-sm py-space-sm">
@@ -225,6 +261,74 @@ export default function CheckoutScreen({
               </button>
             ))}
           </div>
+
+          {paymentMethod === "dinheiro" && (
+            <div className="mt-space-sm flex flex-col gap-space-sm rounded-lg border border-outline-variant bg-surface-container-low p-space-sm">
+              <span className="font-body-md text-body-md font-semibold text-on-surface">
+                Vai precisar de troco?
+              </span>
+              <div className="flex flex-wrap gap-space-xs">
+                <button
+                  type="button"
+                  onClick={() => onChangeForChange("sem")}
+                  aria-pressed={changeFor === "sem"}
+                  className={`rounded-full px-space-md py-space-xs font-body-sm text-body-sm font-semibold transition-colors ${
+                    changeFor === "sem"
+                      ? "bg-primary text-on-primary"
+                      : "bg-surface-container text-on-surface-variant hover:text-on-surface"
+                  }`}
+                >
+                  Não preciso
+                </button>
+                {changeSuggestions(total).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    onClick={() => onChangeForChange(String(v))}
+                    aria-pressed={changeValue === v}
+                    className={`rounded-full px-space-md py-space-xs font-body-sm text-body-sm font-semibold transition-colors ${
+                      changeValue === v
+                        ? "bg-primary text-on-primary"
+                        : "bg-surface-container text-on-surface-variant hover:text-on-surface"
+                    }`}
+                  >
+                    {formatBRL(v)}
+                  </button>
+                ))}
+              </div>
+              <label className="flex items-center gap-space-sm">
+                <span className="shrink-0 font-body-sm text-body-sm text-on-surface-variant">
+                  Troco para
+                </span>
+                <span className="relative flex flex-1 items-center">
+                  <span className="pointer-events-none absolute left-space-sm font-body-md text-body-md text-on-surface-variant">
+                    R$
+                  </span>
+                  <input
+                    value={changeFor === "sem" ? "" : changeFor}
+                    onChange={(e) => onChangeForChange(e.target.value.replace(/[^0-9,.]/g, ""))}
+                    placeholder="0,00"
+                    inputMode="decimal"
+                    aria-label="Valor que você vai pagar em dinheiro"
+                    className="w-full rounded border border-surface-container-highest bg-surface-container-lowest py-space-sm pl-10 pr-space-sm font-body-md text-body-md text-on-surface outline-none transition-colors placeholder:text-outline focus:border-primary"
+                  />
+                </span>
+              </label>
+              {changeValue !== null &&
+                (changeTooLow ? (
+                  <p className="font-body-sm text-body-sm font-semibold text-error">
+                    O valor precisa ser maior que o total ({formatBRL(total)}).
+                  </p>
+                ) : (
+                  <p className="flex items-center justify-between rounded bg-primary/10 px-space-sm py-space-xs font-body-md text-body-md text-on-surface">
+                    <span>Seu troco</span>
+                    <strong className="font-display text-2xl text-primary">
+                      {formatBRL(changeValue - total)}
+                    </strong>
+                  </p>
+                ))}
+            </div>
+          )}
         </section>
 
         <section className="mt-space-lg flex flex-col gap-space-xs">
@@ -257,7 +361,7 @@ export default function CheckoutScreen({
             disabled={!canConfirm}
             className="flex-1 rounded-full bg-primary py-space-md text-center font-headline-md text-headline-md font-bold uppercase tracking-wider text-on-primary shadow-md transition-colors hover:bg-primary-container disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {submitting ? "Enviando…" : "Confirmar pedido"}
+            {lojaFechada ? "Fechado agora" : submitting ? "Enviando…" : "Confirmar pedido"}
           </button>
         </div>
       </div>

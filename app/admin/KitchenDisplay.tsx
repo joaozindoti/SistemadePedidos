@@ -69,6 +69,9 @@ export default function KitchenDisplay() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [freshIds, setFreshIds] = useState<Set<string>>(new Set());
   const [printOrder, setPrintOrder] = useState<ComandaOrder | null>(null);
+  // Pedidos que ainda não foram aceitos no balcão — a cozinha não vê o
+  // conteúdo, só quantos vêm por aí.
+  const [waitingCount, setWaitingCount] = useState(0);
   const [now, setNow] = useState(() => Date.now());
 
   // null até o primeiro carregamento: os pedidos que já estavam na tela ao
@@ -76,10 +79,11 @@ export default function KitchenDisplay() {
   const knownIdsRef = useRef<Set<string> | null>(null);
 
   const fetchOrders = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("orders")
-      .select(ORDER_SELECT)
-      .eq("status", "preparo");
+    const [{ data, error }, waitingRes] = await Promise.all([
+      supabase.from("orders").select(ORDER_SELECT).eq("status", "preparo"),
+      supabase.rpc("pedidos_aguardando_aceite"),
+    ]);
+    if (!waitingRes.error) setWaitingCount(Number(waitingRes.data ?? 0));
 
     if (error) {
       setLoadState((current) => (current === "ready" ? current : "error"));
@@ -255,6 +259,12 @@ export default function KitchenDisplay() {
             <Icon name="local_fire_department" className="text-[24px]" />
             {orders.length} no forno
           </span>
+          {waitingCount > 0 && (
+            <span className="flex items-center gap-space-xs rounded-full border-2 border-outline-variant px-space-md py-space-xs font-display text-2xl font-bold uppercase text-on-surface-variant">
+              <Icon name="hourglass_top" className="text-[22px]" />
+              {waitingCount} aguardando o balcão
+            </span>
+          )}
           {lateCount > 0 && (
             <span className="flex items-center gap-space-xs rounded-full bg-alert px-space-md py-space-xs font-display text-2xl font-bold uppercase text-on-alert">
               <Icon name="alarm" className="text-[24px]" />
@@ -294,7 +304,9 @@ export default function KitchenDisplay() {
             Nenhuma pizza na fila
           </p>
           <p className="text-xl text-on-surface-variant">
-            Quando o balcão aceitar um pedido, a comanda aparece aqui com aviso sonoro.
+            {waitingCount > 0
+              ? `${waitingCount} pedido${waitingCount > 1 ? "s" : ""} esperando o balcão aceitar. Assim que aceitar, a comanda aparece aqui com aviso sonoro.`
+              : "Quando o balcão aceitar um pedido, a comanda aparece aqui com aviso sonoro."}
           </p>
         </div>
       ) : (

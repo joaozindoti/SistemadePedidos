@@ -28,6 +28,7 @@ export interface ComandaOrder {
   items: ComandaItem[];
   payment_method?: string;
   total?: number;
+  change_for?: number | null;
   address_street?: string | null;
   address_number?: string | null;
   address_complement?: string | null;
@@ -69,6 +70,15 @@ export function splitItemName(name: string): { title: string; detail: string | n
 
 export function isDrink(item: ComandaItem): boolean {
   return item.menu_item?.category === "bebida";
+}
+
+// "Troco para R$ 100,00 (levar R$ 37,50)" — só pra dinheiro com troco.
+export function changeLabel(order: Pick<ComandaOrder, "payment_method" | "total" | "change_for">): string | null {
+  if (order.payment_method !== "dinheiro" || order.change_for == null || order.total == null) return null;
+  const changeFor = Number(order.change_for);
+  const total = Number(order.total);
+  if (changeFor <= total) return null;
+  return `Troco para ${formatBRL(changeFor)} (levar ${formatBRL(changeFor - total)})`;
 }
 
 export function formatAddress(order: ComandaOrder): string | null {
@@ -201,6 +211,11 @@ export function ComandaPrint({ order }: { order: ComandaOrder | null }) {
             )}
             {order.total != null && (
               <div style={{ fontWeight: 800, fontSize: "13pt" }}>Total: {formatBRL(Number(order.total))}</div>
+            )}
+            {changeLabel(order) && (
+              <div style={{ fontWeight: 800, fontSize: "11pt", border: "1.5px solid #000", padding: "2px 6px", marginTop: "3px" }}>
+                {changeLabel(order)}
+              </div>
             )}
           </>
         )}
