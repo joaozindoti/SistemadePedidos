@@ -31,10 +31,10 @@ const atkinsonMono = Atkinson_Hyperlegible_Mono({
 // nesta lista, em ordem alfabética, senão aparece como texto.
 const ICON_NAMES = [
   "add", "alarm", "arrow_back", "arrow_forward", "bakery_dining", "bar_chart", "bedtime",
-  "cake", "chat", "check", "check_circle", "chevron_left", "chevron_right", "close", "content_copy",
-  "dark_mode", "delete", "donut_large", "eco", "edit", "error", "fullscreen", "grid_view",
+  "cake", "chat", "check", "check_circle", "chevron_right", "close", "content_copy",
+  "dark_mode", "donut_large", "eco", "edit", "error", "fullscreen", "grid_view",
   "hourglass_top", "install_mobile", "ios_share", "light_mode", "local_drink",
-  "local_fire_department", "local_pizza", "location_on", "lock", "logout", "payments", "point_of_sale", "print",
+  "local_fire_department", "local_pizza", "location_on", "logout", "payments", "print",
   "priority_high", "receipt_long", "remove", "restaurant", "restaurant_menu", "schedule",
   "search", "shopping_bag", "sms_failed", "soup_kitchen", "storefront", "timer",
   "two_wheeler", "volume_off",

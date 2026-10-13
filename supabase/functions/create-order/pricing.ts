@@ -116,10 +116,13 @@ export function priceOrder(
     const menuItem = menuItems.find((m) => m.id === item.menu_item_id)!;
     let unitCents = toCents(menuItem.base_price);
 
-    // Preço especial só quando TODOS os sabores são especiais (com adicional);
-    // misturou especial com sabor comum, sai no preço normal do tamanho.
-    const extras = item.flavor_ids.map((id) => toCents(flavors.find((f) => f.id === id)!.extra_price));
-    const maxFlavorExtraCents = extras.length > 0 && extras.every((c) => c > 0) ? Math.max(...extras) : 0;
+    // Adicional de sabor (especial) só vale em pizza de um sabor só; meio a
+    // meio sai no preço normal do tamanho, mesmo com sabor especial.
+    let maxFlavorExtraCents = 0;
+    for (const flavorId of item.flavor_ids.length === 1 ? item.flavor_ids : []) {
+      const flavor = flavors.find((f) => f.id === flavorId)!;
+      maxFlavorExtraCents = Math.max(maxFlavorExtraCents, toCents(flavor.extra_price));
+    }
     unitCents += maxFlavorExtraCents;
 
     if (item.crust_id) {

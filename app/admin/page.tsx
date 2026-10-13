@@ -9,7 +9,7 @@ import { ThemeToggle } from "@/lib/theme";
 import { InstallAppButton } from "@/lib/install";
 import OrderQueue from "./OrderQueue";
 import WhatsAppPanel from "./WhatsAppPanel";
-import CaixaPanel from "./CaixaPanel";
+import StatsPanel from "./StatsPanel";
 import CardapioPanel from "./CardapioPanel";
 import KitchenDisplay from "./KitchenDisplay";
 import SoundBanner from "./SoundBanner";
@@ -19,7 +19,7 @@ type Section = "fila" | "whatsapp" | "resumo" | "cardapio";
 const SECTIONS: { key: Section; label: string; icon: string }[] = [
   { key: "fila", label: "Fila", icon: "receipt_long" },
   { key: "whatsapp", label: "WhatsApp", icon: "chat" },
-  { key: "resumo", label: "Caixa", icon: "point_of_sale" },
+  { key: "resumo", label: "Resumo", icon: "bar_chart" },
   { key: "cardapio", label: "Cardápio", icon: "restaurant_menu" },
 ];
 
@@ -162,7 +162,7 @@ export default function AdminQueuePage() {
               <OrderQueue onPendingCountChange={setPendingCount} />
             </div>
             {section === "whatsapp" && <WhatsAppPanel />}
-            {section === "resumo" && <CaixaPanel />}
+            {section === "resumo" && <StatsPanel />}
             {section === "cardapio" && <CardapioPanel />}
           </main>
         </>

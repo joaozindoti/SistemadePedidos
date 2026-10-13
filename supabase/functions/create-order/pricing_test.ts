@@ -29,16 +29,7 @@ Deno.test("pizza de um sabor só cobra o adicional do sabor especial", () => {
   assertEquals(r.items[0].unit_price, 65.5);
 });
 
-Deno.test("todos os sabores especiais: cobra o adicional", () => {
-  const r = priceOrder([item("pizza-g", { flavor_ids: ["camarao", "camarao2"] })], menu, [
-    ...flavors,
-    { id: "camarao2", name: "Camarão 2", extra_price: "15.50", active: true },
-  ], crusts);
-  if (!r.ok) throw new Error(r.error);
-  assertEquals(r.items[0].unit_price, 65.5);
-});
-
-Deno.test("especial misturado com sabor comum sai no preço normal; borda e quantidade valem", () => {
+Deno.test("meio a meio não cobra adicional de sabor; borda e quantidade valem", () => {
   const r = priceOrder(
     [
       item("pizza-g", { flavor_ids: ["calabresa", "camarao"], crust_id: "catupiry", quantity: 2 }),
