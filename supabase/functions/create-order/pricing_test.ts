@@ -22,7 +22,14 @@ function item(menu_item_id: string, extra: Partial<OrderItemInput> = {}): OrderI
   return { menu_item_id, flavor_ids: [], crust_id: null, quantity: 1, item_notes: null, ...extra };
 }
 
-Deno.test("total soma base, sabor mais caro e borda, vezes a quantidade", () => {
+Deno.test("pizza de um sabor só cobra o adicional do sabor especial", () => {
+  const r = priceOrder([item("pizza-g", { flavor_ids: ["camarao"] })], menu, flavors, crusts);
+  if (!r.ok) throw new Error(r.error);
+  // 50 + 15,50
+  assertEquals(r.items[0].unit_price, 65.5);
+});
+
+Deno.test("meio a meio não cobra adicional de sabor; borda e quantidade valem", () => {
   const r = priceOrder(
     [
       item("pizza-g", { flavor_ids: ["calabresa", "camarao"], crust_id: "catupiry", quantity: 2 }),
@@ -33,9 +40,9 @@ Deno.test("total soma base, sabor mais caro e borda, vezes a quantidade", () => 
     crusts,
   );
   if (!r.ok) throw new Error(r.error);
-  // (50 + 15,50 + 8) × 2 + 12,90 × 3 = 147 + 38,70
-  assertEquals(r.totalCents, 18570);
-  assertEquals(r.items[0].unit_price, 73.5);
+  // (50 + 8) × 2 + 12,90 × 3 = 116 + 38,70
+  assertEquals(r.totalCents, 15470);
+  assertEquals(r.items[0].unit_price, 58);
   assertEquals(r.items[1].unit_price, 12.9);
 });
 

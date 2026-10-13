@@ -36,11 +36,12 @@ export type SheetTarget = { kind: "pizza" } | { kind: "simple"; item: MenuItem }
 
 export type PizzaUnit = { size: MenuItem; flavors: Flavor[]; crust: Crust | null; notes: string };
 
-// Preço de uma pizza: tamanho + o sabor mais caro + borda.
+// Preço de uma pizza: tamanho + adicional do sabor (só com um sabor; meio a
+// meio sai no preço normal) + borda. Mesma regra do create-order.
 function pizzaUnitPrice(size: MenuItem | null, flavors: Flavor[], crust: Crust | null): number {
   return (
     (size ? Number(size.base_price) : 0) +
-    (flavors.length > 0 ? Math.max(...flavors.map((f) => Number(f.extra_price))) : 0) +
+    (flavors.length === 1 ? Number(flavors[0].extra_price) : 0) +
     (crust ? Number(crust.extra_price) : 0)
   );
 }
@@ -548,6 +549,11 @@ export default function CustomizationSheet({
                                   }`}
                                 >
                                   + {formatBRL(Number(flavor.extra_price))}
+                                  {(maxFlavors ?? 1) > 1 && (
+                                    <span className="block font-label-sm text-label-sm font-normal">
+                                      só se for inteira
+                                    </span>
+                                  )}
                                 </span>
                               )}
                             </label>

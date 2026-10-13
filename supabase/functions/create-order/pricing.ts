@@ -116,9 +116,10 @@ export function priceOrder(
     const menuItem = menuItems.find((m) => m.id === item.menu_item_id)!;
     let unitCents = toCents(menuItem.base_price);
 
-    // Pizza de vários sabores cobra o adicional do sabor mais caro.
+    // Adicional de sabor (especial) só vale em pizza de um sabor só; meio a
+    // meio sai no preço normal do tamanho, mesmo com sabor especial.
     let maxFlavorExtraCents = 0;
-    for (const flavorId of item.flavor_ids) {
+    for (const flavorId of item.flavor_ids.length === 1 ? item.flavor_ids : []) {
       const flavor = flavors.find((f) => f.id === flavorId)!;
       maxFlavorExtraCents = Math.max(maxFlavorExtraCents, toCents(flavor.extra_price));
     }
