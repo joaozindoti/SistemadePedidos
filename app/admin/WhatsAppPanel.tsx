@@ -5,6 +5,9 @@ import { createClient } from "@/lib/supabase/browserClient";
 
 const CONNECTED_STATES = new Set(["open", "conectado", "connected"]);
 const POLL_INTERVAL_MS = 4000;
+// O QR da Evolution expira em cerca de um minuto; depois de 2 min sem conectar
+// para de consultar e oferece gerar outro.
+const POLL_TIMEOUT_MS = 120000;
 
 interface StatusResult {
   state?: string;
@@ -21,6 +24,7 @@ export default function WhatsAppPanel() {
   const [qrcode, setQrcode] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [qrExpired, setQrExpired] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const checkStatus = useCallback(async () => {
@@ -38,38 +42,23 @@ export default function WhatsAppPanel() {
     return state;
   }, [supabase]);
 
-  function stopPolling() {
+  const stopPolling = useCallback(() => {
     if (pollRef.current) {
       clearInterval(pollRef.current);
       pollRef.current = null;
     }
-  }
+  }, []);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const { data, error: invokeError } = await supabase.functions.invoke<StatusResult>(
-        "whatsapp-connect",
-        { body: { action: "status" } },
-      );
-      if (cancelled) return;
-      if (invokeError || !data) {
-        setError("Não conseguimos consultar o status do WhatsApp.");
-        return;
-      }
-      setError(null);
-      setStatus(data.state ?? "desconhecido");
-    })();
-    return () => {
-      cancelled = true;
-      stopPolling();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    checkStatus();
+    return stopPolling;
+  }, [checkStatus, stopPolling]);
 
   async function connect() {
     setConnecting(true);
     setError(null);
+    setQrExpired(false);
     const { data, error: invokeError } = await supabase.functions.invoke<ConnectResult>(
       "whatsapp-connect",
       { body: { action: "connect" } },
@@ -85,7 +74,14 @@ export default function WhatsAppPanel() {
     if (data.state) setStatus(data.state);
 
     stopPolling();
+    const startedAt = Date.now();
     pollRef.current = setInterval(async () => {
+      if (Date.now() - startedAt > POLL_TIMEOUT_MS) {
+        stopPolling();
+        setQrcode(null);
+        setQrExpired(true);
+        return;
+      }
       const state = await checkStatus();
       if (state && CONNECTED_STATES.has(state)) {
         stopPolling();
@@ -123,14 +119,20 @@ export default function WhatsAppPanel() {
             disabled={connecting}
             className="min-h-12 rounded-full bg-primary font-headline-md text-headline-md font-bold uppercase tracking-wider text-on-primary transition-colors hover:bg-primary-container disabled:opacity-50"
           >
-            {connecting ? "Gerando QR code…" : "Conectar WhatsApp"}
+            {connecting ? "Gerando QR code…" : qrExpired ? "Gerar novo QR" : "Conectar WhatsApp"}
           </button>
+        )}
+
+        {qrExpired && !connected && (
+          <p className="font-body-sm text-body-sm text-on-surface-variant">
+            O QR code expirou sem conexão. Toque em &quot;Gerar novo QR&quot; para tentar de novo.
+          </p>
         )}
 
         <button
           type="button"
           onClick={checkStatus}
-          className="font-label-md text-label-md uppercase tracking-wider text-on-surface-variant underline underline-offset-4"
+          className="min-h-11 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant underline underline-offset-4"
         >
           Verificar status
         </button>

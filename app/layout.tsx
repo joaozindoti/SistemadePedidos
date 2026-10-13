@@ -26,6 +26,23 @@ const atkinsonMono = Atkinson_Hyperlegible_Mono({
   adjustFontFallback: false,
 });
 
+// Fonte de ícones só com os ícones usados no app (cliente e painel), em vez
+// da fonte inteira (~3 MB). Ícone novo em <Icon name="..."> precisa entrar
+// nesta lista, em ordem alfabética, senão aparece como texto.
+const ICON_NAMES = [
+  "add", "alarm", "arrow_back", "arrow_forward", "bakery_dining", "bar_chart", "bedtime",
+  "cake", "chat", "check", "check_circle", "chevron_right", "close", "content_copy",
+  "dark_mode", "donut_large", "eco", "edit", "error", "fullscreen", "grid_view",
+  "hourglass_top", "install_mobile", "ios_share", "light_mode", "local_drink",
+  "local_fire_department", "local_pizza", "location_on", "logout", "payments", "print",
+  "priority_high", "receipt_long", "remove", "restaurant", "restaurant_menu", "schedule",
+  "search", "shopping_bag", "sms_failed", "soup_kitchen", "storefront", "timer",
+  "two_wheeler", "volume_off",
+];
+const ICON_FONT_URL =
+  "https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" +
+  `&icon_names=${[...ICON_NAMES].sort().join(",")}&display=swap`;
+
 export const metadata: Metadata = {
   title: "Sidney & Shirley Pizzaria",
   description: "Sabor que chega quente até você!",
@@ -50,10 +67,9 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0..1,0&display=block"
-          rel="stylesheet"
-        />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+        {/* next/font não tem Material Symbols; por isso o <link> no layout raiz. */}
+        <link href={ICON_FONT_URL} rel="stylesheet" />
       </head>
       <body className="min-h-full flex flex-col bg-surface text-on-surface font-body-md text-body-md">
         {children}

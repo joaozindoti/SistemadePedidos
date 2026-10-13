@@ -106,6 +106,7 @@ export default function BrandHero({
           <button
             type="button"
             onClick={onOrderNow}
+            aria-disabled={fechado || undefined}
             className="mt-1 flex items-center gap-space-xs rounded-full bg-[#e5b842] px-space-lg py-space-sm font-display text-2xl font-extrabold uppercase tracking-wide text-[#1d1500] shadow-[0_6px_20px_rgba(229,184,66,0.35)] transition-transform hover:bg-[#ffd56d] active:scale-[0.98]"
           >
             {fechado ? "Fechado agora" : "Peça já a sua"}

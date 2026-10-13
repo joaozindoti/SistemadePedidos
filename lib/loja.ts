@@ -1,11 +1,9 @@
-"use client";
-
-import { useCallback, useEffect, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 // Horário de funcionamento (tabela loja_config + função loja_aberta no
 // banco). A regra de verdade roda no banco — aqui só se lê o resultado,
-// pra não ter dois relógios discordando.
+// pra não ter dois relógios discordando. Sem React aqui: o cardápio também
+// lê isto no servidor (app/pedido/page.tsx).
 
 export type ModoLoja = "auto" | "aberta" | "fechada";
 
@@ -36,25 +34,4 @@ export async function fetchLojaStatus(supabase: SupabaseClient): Promise<LojaSta
     aberta: abertaRes.data !== false,
     config: (configRes.data as LojaConfig | null) ?? null,
   };
-}
-
-// Reconsulta a cada minuto: quem deixou o cardápio aberto vê a loja fechar
-// às 23h sem precisar recarregar.
-export function useLojaStatus(supabase: SupabaseClient) {
-  const [status, setStatus] = useState<LojaStatus | null>(null);
-
-  const refresh = useCallback(async () => {
-    const next = await fetchLojaStatus(supabase);
-    // Erro de rede não fecha a loja: o create-order confere de novo.
-    if (next) setStatus(next);
-  }, [supabase]);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    refresh();
-    const interval = setInterval(refresh, 60000);
-    return () => clearInterval(interval);
-  }, [refresh]);
-
-  return { status, refresh };
 }

@@ -4,16 +4,24 @@ import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/browserClient";
 import { formatBRL } from "@/lib/ui";
 
-interface OrderSummary {
-  status: string;
-  total: number;
+// Formato devolvido pela RPC resumo_do_dia(): o banco corta o dia no fuso
+// America/Fortaleza e soma o faturamento só dos status faturáveis (preparo,
+// pronto, saiu_entrega, finalizado). por_status sempre traz os 7 status.
+interface ResumoDoDia {
+  dia: string;
+  pedidos: number;
+  faturamento: number | string;
+  por_status: Record<string, number>;
 }
 
 const STATUS_ROWS: { status: string; label: string }[] = [
   { status: "pendente", label: "Pendente" },
+  { status: "confirmado", label: "Confirmado" },
   { status: "preparo", label: "Em preparo" },
   { status: "pronto", label: "Pronto" },
+  { status: "saiu_entrega", label: "Saiu para entrega" },
   { status: "finalizado", label: "Finalizado" },
+  { status: "cancelado", label: "Cancelado" },
 ];
 
 function StatCard({ label, value }: { label: string; value: string }) {
@@ -29,55 +37,29 @@ function StatCard({ label, value }: { label: string; value: string }) {
 
 export default function StatsPanel() {
   const supabase = createClient();
-  const [orders, setOrders] = useState<OrderSummary[]>([]);
+  const [resumo, setResumo] = useState<ResumoDoDia | null>(null);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">(
     "loading",
   );
 
   const load = useCallback(async () => {
     setLoadState("loading");
-    const startOfDay = new Date();
-    startOfDay.setHours(0, 0, 0, 0);
+    const { data, error } = await supabase.rpc("resumo_do_dia");
 
-    const { data, error } = await supabase
-      .from("orders")
-      .select("status, total")
-      .gte("created_at", startOfDay.toISOString());
-
-    if (error) {
+    if (error || !data) {
+      console.log("Falha ao carregar o resumo do dia:", error);
       setLoadState("error");
       return;
     }
 
-    setOrders((data ?? []) as OrderSummary[]);
+    setResumo(data as ResumoDoDia);
     setLoadState("ready");
   }, [supabase]);
 
   useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      const startOfDay = new Date();
-      startOfDay.setHours(0, 0, 0, 0);
-
-      const { data, error } = await supabase
-        .from("orders")
-        .select("status, total")
-        .gte("created_at", startOfDay.toISOString());
-
-      if (cancelled) return;
-      if (error) {
-        setLoadState("error");
-        return;
-      }
-
-      setOrders((data ?? []) as OrderSummary[]);
-      setLoadState("ready");
-    })();
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    load();
+  }, [load]);
 
   if (loadState === "loading") {
     return (
@@ -87,7 +69,7 @@ export default function StatsPanel() {
     );
   }
 
-  if (loadState === "error") {
+  if (loadState === "error" || !resumo) {
     return (
       <div className="flex flex-col items-center gap-space-sm py-space-xl text-center">
         <p className="font-body-md text-body-md text-on-surface-variant">
@@ -96,7 +78,7 @@ export default function StatsPanel() {
         <button
           type="button"
           onClick={() => load()}
-          className="font-label-md text-label-md uppercase tracking-wider text-primary underline underline-offset-4"
+          className="min-h-11 font-label-md text-label-md uppercase tracking-wider text-primary underline underline-offset-4"
         >
           Tentar novamente
         </button>
@@ -104,16 +86,11 @@ export default function StatsPanel() {
     );
   }
 
-  const totalPedidos = orders.length;
-  const faturamento = orders
-    .filter((o) => o.status !== "pendente")
-    .reduce((sum, o) => sum + Number(o.total), 0);
-
   return (
     <div className="flex flex-col gap-space-md">
       <div className="grid grid-cols-2 gap-space-sm">
-        <StatCard label="Pedidos hoje" value={String(totalPedidos)} />
-        <StatCard label="Faturamento hoje" value={formatBRL(faturamento)} />
+        <StatCard label="Pedidos hoje" value={String(resumo.pedidos)} />
+        <StatCard label="Faturamento hoje" value={formatBRL(Number(resumo.faturamento))} />
       </div>
 
       <section className="flex flex-col gap-space-xs rounded-lg border border-surface-container-highest bg-surface-container-lowest p-space-sm">
@@ -125,7 +102,7 @@ export default function StatsPanel() {
             <div key={status} className="flex items-center justify-between py-space-xs">
               <span className="font-body-md text-body-md text-on-surface">{label}</span>
               <span className="font-mono text-body-md text-primary">
-                {orders.filter((o) => o.status === status).length}
+                {resumo.por_status[status] ?? 0}
               </span>
             </div>
           ))}

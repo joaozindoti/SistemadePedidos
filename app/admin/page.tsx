@@ -12,6 +12,7 @@ import WhatsAppPanel from "./WhatsAppPanel";
 import StatsPanel from "./StatsPanel";
 import CardapioPanel from "./CardapioPanel";
 import KitchenDisplay from "./KitchenDisplay";
+import SoundBanner from "./SoundBanner";
 
 type Section = "fila" | "whatsapp" | "resumo" | "cardapio";
 
@@ -26,6 +27,7 @@ export default function AdminQueuePage() {
   const router = useRouter();
   const supabase = createClient();
   const [section, setSection] = useState<Section>("fila");
+  const [pendingCount, setPendingCount] = useState(0);
   // null enquanto o cargo não foi lido, pra não piscar as abas do admin
   // na tela da cozinha. Conta sem cargo não tem acesso nenhum (a RLS
   // também bloqueia; aqui é só pra mostrar o motivo em vez de tela vazia).
@@ -138,12 +140,27 @@ export default function AdminQueuePage() {
               >
                 <Icon name={s.icon} className="text-[16px]" />
                 <span>{s.label}</span>
+                {s.key === "fila" && pendingCount > 0 && (
+                  <span
+                    className={`flex h-5 min-w-5 items-center justify-center rounded-full px-1 font-mono text-body-sm font-bold ${
+                      section === s.key ? "bg-on-primary text-primary" : "bg-alert text-on-alert"
+                    }`}
+                  >
+                    {pendingCount}
+                    <span className="sr-only"> esperando aceite</span>
+                  </span>
+                )}
               </button>
             ))}
           </div>
 
-          <main className="mx-auto flex max-w-2xl flex-col px-margin pt-space-md">
-            {section === "fila" && <OrderQueue />}
+          <main className="mx-auto flex max-w-2xl flex-col gap-space-sm px-margin pt-space-md">
+            <SoundBanner />
+            {/* A fila fica sempre montada (só escondida) pra o aviso sonoro de
+                pedido novo tocar em qualquer aba. */}
+            <div hidden={section !== "fila"}>
+              <OrderQueue onPendingCountChange={setPendingCount} />
+            </div>
             {section === "whatsapp" && <WhatsAppPanel />}
             {section === "resumo" && <StatsPanel />}
             {section === "cardapio" && <CardapioPanel />}

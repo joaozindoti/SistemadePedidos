@@ -116,6 +116,41 @@ function toInput(n: number): string {
   return n.toFixed(2).replace(".", ",");
 }
 
+// ───────────── máx. de sabores (só tamanho de pizza) ─────────────
+// Obrigatório: sem ele o cliente via "1 de null" e escolhia sabores sem
+// limite. O banco também exige >= 1 em pizza. Até 4 porque a comanda só sabe
+// dividir em ½, ⅓ e ¼.
+
+const MAX_FLAVORS_OPTIONS = [1, 2, 3, 4];
+
+function MaxFlavorsSelect({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <label className="flex items-center gap-space-xs">
+      <span className="font-label-sm text-label-sm uppercase text-on-surface-variant">Máx. de sabores</span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        required
+        className="min-h-11 rounded-lg border border-outline-variant bg-surface-container-lowest px-space-sm font-body-md text-body-md text-on-surface outline-none focus:border-primary"
+      >
+        <option value="" disabled>
+          Escolha
+        </option>
+        {MAX_FLAVORS_OPTIONS.map((n) => (
+          <option key={n} value={n}>
+            {n}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function parseMaxFlavors(v: string): number | null {
+  const n = Number(v);
+  return v !== "" && Number.isInteger(n) && n >= 1 ? n : null;
+}
+
 // ───────────── linha editável ─────────────
 
 function EditableRow({
@@ -124,6 +159,7 @@ function EditableRow({
   priceLabel,
   active,
   badge,
+  maxFlavors,
   onSave,
   onToggleActive,
 }: {
@@ -132,27 +168,34 @@ function EditableRow({
   priceLabel?: string;
   active: boolean;
   badge?: string;
-  onSave: (name: string, price: number) => Promise<boolean>;
+  // Só tamanho de pizza passa (mesmo null); undefined esconde o campo.
+  maxFlavors?: number | null;
+  onSave: (name: string, price: number, maxFlavors: number | null) => Promise<boolean>;
   onToggleActive: () => void;
 }) {
+  const withMaxFlavors = maxFlavors !== undefined;
   const [editing, setEditing] = useState(false);
   const [nameInput, setNameInput] = useState(name);
   const [priceInput, setPriceInput] = useState(toInput(price));
+  const [maxFlavorsInput, setMaxFlavorsInput] = useState(maxFlavors != null ? String(maxFlavors) : "");
   const [saving, setSaving] = useState(false);
 
   const parsedPrice = parseMoney(priceInput);
-  const valid = nameInput.trim().length > 0 && parsedPrice !== null;
+  const parsedMaxFlavors = parseMaxFlavors(maxFlavorsInput);
+  const valid =
+    nameInput.trim().length > 0 && parsedPrice !== null && (!withMaxFlavors || parsedMaxFlavors !== null);
 
   function startEditing() {
     setNameInput(name);
     setPriceInput(toInput(price));
+    setMaxFlavorsInput(maxFlavors != null ? String(maxFlavors) : "");
     setEditing(true);
   }
 
   async function save() {
     if (!valid || saving) return;
     setSaving(true);
-    const ok = await onSave(nameInput.trim(), parsedPrice!);
+    const ok = await onSave(nameInput.trim(), parsedPrice!, parsedMaxFlavors);
     setSaving(false);
     if (ok) setEditing(false);
   }
@@ -179,11 +222,12 @@ function EditableRow({
             label={priceLabel ?? "Preço"}
           />
         </div>
+        {withMaxFlavors && <MaxFlavorsSelect value={maxFlavorsInput} onChange={setMaxFlavorsInput} />}
         <div className="flex items-center justify-end gap-space-xs">
           <button
             type="button"
             onClick={() => setEditing(false)}
-            className="min-h-10 rounded-full px-space-md font-label-md text-label-md uppercase text-on-surface-variant hover:text-on-surface"
+            className="min-h-11 rounded-full px-space-md font-label-md text-label-md uppercase text-on-surface-variant hover:text-on-surface"
           >
             Cancelar
           </button>
@@ -191,7 +235,7 @@ function EditableRow({
             type="button"
             onClick={save}
             disabled={!valid || saving}
-            className="flex min-h-10 items-center gap-space-xs rounded-full bg-primary px-space-md font-label-md text-label-md font-bold uppercase text-on-primary disabled:opacity-40"
+            className="flex min-h-11 items-center gap-space-xs rounded-full bg-primary px-space-md font-label-md text-label-md font-bold uppercase text-on-primary disabled:opacity-40"
           >
             <Icon name="check" className="text-[18px]" />
             {saving ? "Salvando…" : "Salvar"}
@@ -215,6 +259,15 @@ function EditableRow({
         <span className="font-body-sm text-body-sm text-primary">
           {priceLabel ? `${priceLabel}: ` : ""}
           {formatBRL(price)}
+          {withMaxFlavors &&
+            (maxFlavors != null ? (
+              <span className="text-on-surface-variant">
+                {" "}
+                · até {maxFlavors} sabor{maxFlavors > 1 ? "es" : ""}
+              </span>
+            ) : (
+              <span className="font-semibold text-error"> · defina o máx. de sabores</span>
+            ))}
         </span>
       </div>
       <button
@@ -222,7 +275,7 @@ function EditableRow({
         onClick={startEditing}
         aria-label={`Editar ${name}`}
         title="Editar nome e preço"
-        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-outline-variant text-on-surface-variant transition-colors hover:border-outline hover:text-on-surface"
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-outline-variant text-on-surface-variant transition-colors hover:border-outline hover:text-on-surface"
       >
         <Icon name="edit" className="text-[18px]" />
       </button>
@@ -237,31 +290,42 @@ function AddForm({
   noun,
   priceLabel = "Preço",
   withFlavorType = false,
+  withMaxFlavors = false,
   onAdd,
 }: {
   noun: string;
   priceLabel?: string;
   withFlavorType?: boolean;
-  onAdd: (name: string, price: number, type: "salgada" | "doce") => Promise<boolean>;
+  withMaxFlavors?: boolean;
+  onAdd: (
+    name: string,
+    price: number,
+    type: "salgada" | "doce",
+    maxFlavors: number | null,
+  ) => Promise<boolean>;
 }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
   const [type, setType] = useState<"salgada" | "doce">("salgada");
+  const [maxFlavors, setMaxFlavors] = useState("");
   const [saving, setSaving] = useState(false);
 
   // Adicional de sabor/borda pode ficar em branco (= R$ 0,00).
   const parsedPrice = parseMoney(price || (withFlavorType || priceLabel !== "Preço" ? "0" : ""));
-  const valid = name.trim().length > 0 && parsedPrice !== null;
+  const parsedMaxFlavors = parseMaxFlavors(maxFlavors);
+  const valid =
+    name.trim().length > 0 && parsedPrice !== null && (!withMaxFlavors || parsedMaxFlavors !== null);
 
   async function submit() {
     if (!valid || saving) return;
     setSaving(true);
-    const ok = await onAdd(name.trim(), parsedPrice!, type);
+    const ok = await onAdd(name.trim(), parsedPrice!, type, parsedMaxFlavors);
     setSaving(false);
     if (ok) {
       setName("");
       setPrice("");
+      setMaxFlavors("");
       setOpen(false);
     }
   }
@@ -292,6 +356,7 @@ function AddForm({
         />
         <PriceInput value={price} onChange={setPrice} onEnter={submit} label={priceLabel} />
       </div>
+      {withMaxFlavors && <MaxFlavorsSelect value={maxFlavors} onChange={setMaxFlavors} />}
       {withFlavorType && (
         <div className="flex gap-space-xs">
           {(["salgada", "doce"] as const).map((t) => (
@@ -313,7 +378,7 @@ function AddForm({
         <button
           type="button"
           onClick={() => setOpen(false)}
-          className="min-h-10 rounded-full px-space-md font-label-md text-label-md uppercase text-on-surface-variant hover:text-on-surface"
+          className="min-h-11 rounded-full px-space-md font-label-md text-label-md uppercase text-on-surface-variant hover:text-on-surface"
         >
           Cancelar
         </button>
@@ -321,7 +386,7 @@ function AddForm({
           type="button"
           onClick={submit}
           disabled={!valid || saving}
-          className="flex min-h-10 items-center gap-space-xs rounded-full bg-primary px-space-md font-label-md text-label-md font-bold uppercase text-on-primary disabled:opacity-40"
+          className="flex min-h-11 items-center gap-space-xs rounded-full bg-primary px-space-md font-label-md text-label-md font-bold uppercase text-on-primary disabled:opacity-40"
         >
           <Icon name="add" className="text-[18px]" />
           {saving ? "Adicionando…" : "Adicionar"}
@@ -374,12 +439,15 @@ function HorarioCard({ onToast }: { onToast: (kind: "ok" | "erro", text: string)
   const [abre, setAbre] = useState("");
   const [fecha, setFecha] = useState("");
   const [saving, setSaving] = useState(false);
+  // Enquanto o admin mexe nos horários, o load() de 60 em 60 s não pode
+  // devolver os campos pro valor salvo.
+  const editingHoraRef = useRef(false);
 
   const load = useCallback(async () => {
     const next = await fetchLojaStatus(supabase);
     if (!next) return;
     setStatus(next);
-    if (next.config) {
+    if (next.config && !editingHoraRef.current) {
       setAbre(next.config.abre_as.slice(0, 5));
       setFecha(next.config.fecha_as.slice(0, 5));
     }
@@ -402,6 +470,7 @@ function HorarioCard({ onToast }: { onToast: (kind: "ok" | "erro", text: string)
       return;
     }
     onToast("ok", okText);
+    if (patch.abre_as !== undefined) editingHoraRef.current = false;
     load();
   }
 
@@ -416,6 +485,9 @@ function HorarioCard({ onToast }: { onToast: (kind: "ok" | "erro", text: string)
   const modo = status.config?.modo ?? "auto";
   const horaMudou =
     status.config && (abre !== status.config.abre_as.slice(0, 5) || fecha !== status.config.fecha_as.slice(0, 5));
+  // Abertura igual ao fechamento deixaria a loja aberta 24h (o banco também
+  // recusa).
+  const horaIgual = abre !== "" && abre === fecha;
 
   return (
     <section className="flex flex-col gap-space-md rounded-xl border border-outline-variant/60 bg-surface-container-lowest p-space-md">
@@ -475,7 +547,10 @@ function HorarioCard({ onToast }: { onToast: (kind: "ok" | "erro", text: string)
           <input
             type="time"
             value={abre}
-            onChange={(e) => setAbre(e.target.value)}
+            onChange={(e) => {
+              editingHoraRef.current = true;
+              setAbre(e.target.value);
+            }}
             className="min-h-11 rounded-lg border border-outline-variant bg-surface-container-low px-space-sm font-body-md text-body-md text-on-surface outline-none focus:border-primary"
           />
         </label>
@@ -484,13 +559,16 @@ function HorarioCard({ onToast }: { onToast: (kind: "ok" | "erro", text: string)
           <input
             type="time"
             value={fecha}
-            onChange={(e) => setFecha(e.target.value)}
+            onChange={(e) => {
+              editingHoraRef.current = true;
+              setFecha(e.target.value);
+            }}
             className="min-h-11 rounded-lg border border-outline-variant bg-surface-container-low px-space-sm font-body-md text-body-md text-on-surface outline-none focus:border-primary"
           />
         </label>
         <button
           type="button"
-          disabled={!horaMudou || !abre || !fecha || saving}
+          disabled={!horaMudou || !abre || !fecha || horaIgual || saving}
           onClick={() =>
             save({ abre_as: abre, fecha_as: fecha }, `Horário salvo: ${formatHora(abre)} às ${formatHora(fecha)}`)
           }
@@ -500,6 +578,11 @@ function HorarioCard({ onToast }: { onToast: (kind: "ok" | "erro", text: string)
           Salvar horário
         </button>
       </div>
+      {horaIgual && (
+        <p role="alert" className="font-body-sm text-body-sm font-semibold text-error">
+          A abertura e o fechamento não podem ser no mesmo horário.
+        </p>
+      )}
       <p className="font-body-sm text-body-sm text-on-surface-variant">
         Fora do horário o cardápio não aceita pedidos e o WhatsApp responde uma vez avisando que
         estamos fechados.
@@ -592,7 +675,17 @@ export default function CardapioPanel() {
       name={m.name}
       price={Number(m.base_price)}
       active={m.active}
-      onSave={(name, price) => patchRow("menu_items", menuItems, setMenuItems, m.id, { name, base_price: price }, "Salvo ✓")}
+      maxFlavors={m.category === "pizza" ? m.max_flavors : undefined}
+      onSave={(name, price, maxFlavors) =>
+        patchRow(
+          "menu_items",
+          menuItems,
+          setMenuItems,
+          m.id,
+          m.category === "pizza" ? { name, base_price: price, max_flavors: maxFlavors } : { name, base_price: price },
+          "Salvo ✓",
+        )
+      }
       onToggleActive={() =>
         patchRow(
           "menu_items",
@@ -662,8 +755,14 @@ export default function CardapioPanel() {
         {pizzaSizes.filter((m) => match(m.name)).map(menuRow)}
         <AddForm
           noun="tamanho"
-          onAdd={(name, price) =>
-            insertRow("menu_items", setMenuItems, { name, category: "pizza", base_price: price, active: true }, `${name} adicionado`)
+          withMaxFlavors
+          onAdd={(name, price, _type, maxFlavors) =>
+            insertRow(
+              "menu_items",
+              setMenuItems,
+              { name, category: "pizza", base_price: price, max_flavors: maxFlavors, active: true },
+              `${name} adicionado`,
+            )
           }
         />
       </Section>

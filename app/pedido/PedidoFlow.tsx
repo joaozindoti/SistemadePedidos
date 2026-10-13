@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
-import type { Address, CartItem, Flavor, MenuItem } from "@/lib/types";
-import { formatHora, useLojaStatus } from "@/lib/loja";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { anonBrowserClient } from "./anonClient";
+import { ORDER_LIMITS, type Address, type CartItem, type Crust, type Flavor, type MenuItem } from "@/lib/types";
+import { formatHora } from "@/lib/loja";
+import { fetchMenu, type MenuData, type PedidoInitialData } from "./menuData";
+import { useLojaStatus } from "./useLojaStatus";
 import MenuScreen from "./MenuScreen";
 import CustomizationSheet, { type PizzaUnit, type SheetTarget } from "./CustomizationSheet";
 import CheckoutScreen, { parseMoney, type PaymentMethod } from "./CheckoutScreen";
@@ -12,57 +14,65 @@ import ErrorScreen from "./ErrorScreen";
 
 type View = "menu" | "checkout" | "success" | "error";
 
-export default function PedidoFlow() {
+// Contrato do create-order para item que saiu do cardápio entre a montagem
+// da sacola e o envio: 400 com { error, code, ids }.
+type UnavailableCode = "item_indisponivel" | "sabor_indisponivel" | "borda_indisponivel";
+const UNAVAILABLE_CODES: readonly string[] = [
+  "item_indisponivel",
+  "sabor_indisponivel",
+  "borda_indisponivel",
+] satisfies UnavailableCode[];
+
+function joinNames(names: string[]): string {
+  if (names.length <= 1) return names.join("");
+  return `${names.slice(0, -1).join(", ")} e ${names[names.length - 1]}`;
+}
+
+export default function PedidoFlow({ initialData }: { initialData: PedidoInitialData }) {
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">(
-    "loading",
+    initialData.menu ? "ready" : "loading",
   );
-  const [pizzas, setPizzas] = useState<MenuItem[]>([]);
-  const [simpleMenuItems, setSimpleMenuItems] = useState<MenuItem[]>([]);
-  const [flavors, setFlavors] = useState<Flavor[]>([]);
+  const [menu, setMenu] = useState<MenuData>(
+    initialData.menu ?? { menuItems: [], flavors: [], crusts: [] },
+  );
 
+  const reloadMenu = useCallback(async () => {
+    const next = await fetchMenu(anonBrowserClient());
+    if (next) setMenu(next);
+    return next;
+  }, []);
+
+  // Fallback: o servidor não conseguiu entregar o cardápio, busca aqui.
+  const needsClientLoad = initialData.menu === null;
   useEffect(() => {
+    if (!needsClientLoad) return;
     let cancelled = false;
-
-    async function load() {
-      setLoadState("loading");
-      const [menuRes, flavorsRes] = await Promise.all([
-        supabase
-          .from("menu_items")
-          .select("*")
-          .eq("active", true)
-          .order("base_price", { ascending: true }),
-        supabase
-          .from("flavors")
-          .select("*")
-          .eq("active", true)
-          .order("name", { ascending: true }),
-      ]);
-
-      if (cancelled) return;
-
-      if (menuRes.error || flavorsRes.error) {
-        setLoadState("error");
-        return;
-      }
-
-      const menuItems = (menuRes.data ?? []) as MenuItem[];
-      setPizzas(menuItems.filter((m) => m.category === "pizza"));
-      setSimpleMenuItems(
-        menuItems.filter((m) => m.category === "esfirra" || m.category === "bebida"),
-      );
-      setFlavors((flavorsRes.data ?? []) as Flavor[]);
-      setLoadState("ready");
-    }
-
-    load();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    reloadMenu().then((next) => {
+      if (!cancelled) setLoadState(next ? "ready" : "error");
+    });
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [needsClientLoad, reloadMenu]);
+
+  const pizzas = useMemo(() => menu.menuItems.filter((m) => m.category === "pizza"), [menu]);
+  const esfirraItems = useMemo(
+    () => menu.menuItems.filter((i) => i.category === "esfirra"),
+    [menu],
+  );
+  const bebidaItems = useMemo(
+    () => menu.menuItems.filter((i) => i.category === "bebida"),
+    [menu],
+  );
+  const flavors: Flavor[] = menu.flavors;
+  const crusts: Crust[] = menu.crusts;
 
   const [view, setView] = useState<View>("menu");
   const [sheetTarget, setSheetTarget] = useState<SheetTarget | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
+  // Aviso na sacola (ex.: item esgotado removido depois do envio).
+  const [cartNotice, setCartNotice] = useState<string | null>(null);
 
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
@@ -84,7 +94,7 @@ export default function PedidoFlow() {
   // ou o valor digitado ("100", "50,00").
   const [changeFor, setChangeFor] = useState("");
 
-  const { status: loja, refresh: refreshLoja } = useLojaStatus(supabase);
+  const { status: loja, refresh: refreshLoja } = useLojaStatus(initialData.loja);
   const lojaFechada = loja?.aberta === false;
   const horarioTexto = loja?.config
     ? `das ${formatHora(loja.config.abre_as)} às ${formatHora(loja.config.fecha_as)}`
@@ -98,14 +108,10 @@ export default function PedidoFlow() {
     total: number;
   } | null>(null);
 
-  const esfirraItems = useMemo(
-    () => simpleMenuItems.filter((i) => i.category === "esfirra"),
-    [simpleMenuItems],
-  );
-  const bebidaItems = useMemo(
-    () => simpleMenuItems.filter((i) => i.category === "bebida"),
-    [simpleMenuItems],
-  );
+  // Chave de idempotência do checkout: o "tentar de novo" com o mesmo pedido
+  // reenvia a mesma chave, pra que uma resposta perdida não grave o pedido
+  // duas vezes. Muda quando o conteúdo do pedido muda ou depois do sucesso.
+  const idempotencyRef = useRef<{ key: string; payload: string } | null>(null);
 
   const minPizzaPrice = useMemo(() => {
     if (pizzas.length === 0) return null;
@@ -116,6 +122,8 @@ export default function PedidoFlow() {
     () => cart.reduce((sum, item) => sum + item.unit_price * item.quantity, 0),
     [cart],
   );
+  // Linhas contam pro limite do pedido; unidades são o que o cliente vê.
+  const cartUnits = useMemo(() => cart.reduce((sum, item) => sum + item.quantity, 0), [cart]);
 
   // Chave de "mesma configuração": mesmo tamanho, mesmo conjunto de sabores
   // (ordem não importa), mesma borda e mesma observação — usada pra juntar
@@ -133,7 +141,8 @@ export default function PedidoFlow() {
         const flavorIds = unit.flavors.map((f) => f.id);
         const notes = unit.notes.trim();
         const maxExtra = Math.max(...unit.flavors.map((f) => Number(f.extra_price)));
-        const key = pizzaUnitKey(unit.size.id, flavorIds, undefined, notes);
+        const crustExtra = unit.crust ? Number(unit.crust.extra_price) : 0;
+        const key = pizzaUnitKey(unit.size.id, flavorIds, unit.crust?.id, notes);
 
         const existingIndex = next.findIndex(
           (item) =>
@@ -142,7 +151,8 @@ export default function PedidoFlow() {
               key,
         );
 
-        if (existingIndex >= 0) {
+        // Linha já no teto de quantidade: a unidade vai para uma linha nova.
+        if (existingIndex >= 0 && next[existingIndex].quantity < ORDER_LIMITS.maxQuantity) {
           next[existingIndex] = {
             ...next[existingIndex],
             quantity: next[existingIndex].quantity + 1,
@@ -155,9 +165,11 @@ export default function PedidoFlow() {
             menu_item_name: unit.size.name,
             flavor_ids: flavorIds,
             flavor_names: unit.flavors.map((f) => f.name),
+            crust_id: unit.crust?.id,
+            crust_name: unit.crust?.name,
             quantity: 1,
             item_notes: notes || undefined,
-            unit_price: Number(unit.size.base_price) + maxExtra,
+            unit_price: Number(unit.size.base_price) + maxExtra + crustExtra,
           });
         }
       }
@@ -177,51 +189,106 @@ export default function PedidoFlow() {
       kind: "simple",
       menu_item_id: menuItem.id,
       menu_item_name: menuItem.name,
-      quantity,
+      quantity: Math.min(quantity, ORDER_LIMITS.maxQuantity),
       item_notes: notes.trim() || undefined,
       unit_price: Number(menuItem.base_price),
     };
-    setCart((c) => [...c, item]);
+    setCart((c) => (c.length >= ORDER_LIMITS.maxCartItems ? c : [...c, item]));
   }
 
   function removeFromCart(key: string) {
     setCart((c) => c.filter((item) => item.key !== key));
   }
 
+  // Item, sabor ou borda saiu do cardápio depois que entrou na sacola: tira
+  // as linhas afetadas, atualiza o cardápio e explica com nomes, não UUIDs.
+  function handleUnavailable(code: UnavailableCode, ids: string[]) {
+    const idSet = new Set(ids);
+    const affects = (item: CartItem) =>
+      code === "item_indisponivel"
+        ? idSet.has(item.menu_item_id)
+        : code === "sabor_indisponivel"
+          ? (item.flavor_ids ?? []).some((id) => idSet.has(id))
+          : item.crust_id !== undefined && idSet.has(item.crust_id);
+
+    const removed = cart.filter(affects);
+    const nameSet = new Set<string>();
+    for (const item of removed) {
+      if (code === "item_indisponivel") nameSet.add(item.menu_item_name);
+      else if (code === "borda_indisponivel" && item.crust_name) nameSet.add(item.crust_name);
+      else if (code === "sabor_indisponivel") {
+        (item.flavor_ids ?? []).forEach((id, i) => {
+          if (idSet.has(id) && item.flavor_names?.[i]) nameSet.add(item.flavor_names[i]);
+        });
+      }
+    }
+    const names = [...nameSet];
+    const many = names.length > 1;
+    const lineWord = removed.length > 1 ? "as pizzas" : "a pizza";
+
+    let message: string;
+    if (removed.length === 0 || names.length === 0) {
+      message = "Um item do cardápio acabou agora há pouco e atualizamos o cardápio.";
+    } else if (code === "item_indisponivel") {
+      message = `${joinNames(names)} ${many ? "acabaram e saíram" : "acabou e saiu"} da sua sacola.`;
+    } else if (code === "sabor_indisponivel") {
+      message = many
+        ? `Os sabores ${joinNames(names)} acabaram. Tiramos da sacola ${lineWord} com eles.`
+        : `O sabor ${names[0]} acabou. Tiramos da sacola ${lineWord} com ele.`;
+    } else {
+      message = many
+        ? `As bordas ${joinNames(names)} acabaram. Tiramos da sacola ${lineWord} com elas.`
+        : `A borda ${names[0]} acabou. Tiramos da sacola ${lineWord} com ela.`;
+    }
+
+    setCart((current) => current.filter((item) => !affects(item)));
+    reloadMenu();
+    setCartNotice(`${message} Confira e confirme de novo.`);
+    setView("checkout");
+  }
+
   async function confirmOrder() {
     if (!orderType || !paymentMethod || lojaFechada) return;
     setSubmitting(true);
     setSubmitError(null);
+    setCartNotice(null);
 
-    const { data, error } = await supabase.functions.invoke("create-order", {
-      body: {
-        name: customerName.trim(),
-        phone: customerPhone.trim(),
-        order_type: orderType,
-        address:
-          orderType === "entrega"
-            ? {
-                street: address.street.trim(),
-                number: address.number.trim(),
-                complement: address.complement.trim() || undefined,
-                neighborhood: address.neighborhood.trim(),
-                city: address.city.trim(),
-              }
-            : undefined,
-        payment_method: paymentMethod,
-        change_for:
-          paymentMethod === "dinheiro" && changeFor && changeFor !== "sem"
-            ? (parseMoney(changeFor) ?? undefined)
-            : undefined,
-        notes: orderNotes.trim() || undefined,
-        items: cart.map((item) => ({
-          menu_item_id: item.menu_item_id,
-          flavor_ids: item.flavor_ids,
-          crust_id: item.crust_id,
-          quantity: item.quantity,
-          item_notes: item.item_notes,
-        })),
-      },
+    const orderPayload = {
+      name: customerName.trim(),
+      phone: customerPhone.trim(),
+      order_type: orderType,
+      address:
+        orderType === "entrega"
+          ? {
+              street: address.street.trim(),
+              number: address.number.trim(),
+              complement: address.complement.trim() || undefined,
+              neighborhood: address.neighborhood.trim(),
+              city: address.city.trim(),
+            }
+          : undefined,
+      payment_method: paymentMethod,
+      change_for:
+        paymentMethod === "dinheiro" && changeFor && changeFor !== "sem"
+          ? (parseMoney(changeFor) ?? undefined)
+          : undefined,
+      notes: orderNotes.trim() || undefined,
+      items: cart.map((item) => ({
+        menu_item_id: item.menu_item_id,
+        flavor_ids: item.flavor_ids,
+        crust_id: item.crust_id,
+        quantity: item.quantity,
+        item_notes: item.item_notes,
+      })),
+    };
+
+    const payloadSignature = JSON.stringify(orderPayload);
+    if (idempotencyRef.current?.payload !== payloadSignature) {
+      idempotencyRef.current = { key: crypto.randomUUID(), payload: payloadSignature };
+    }
+
+    const { data, error } = await anonBrowserClient().functions.invoke("create-order", {
+      body: { ...orderPayload, idempotency_key: idempotencyRef.current.key },
     });
 
     setSubmitting(false);
@@ -233,6 +300,17 @@ export default function PedidoFlow() {
       if (context) {
         try {
           const body = await context.json();
+          if (
+            typeof body?.code === "string" &&
+            UNAVAILABLE_CODES.includes(body.code) &&
+            Array.isArray(body.ids)
+          ) {
+            handleUnavailable(
+              body.code as UnavailableCode,
+              body.ids.filter((id: unknown): id is string => typeof id === "string"),
+            );
+            return;
+          }
           if (body?.error) message = body.error;
         } catch {
           // resposta sem corpo JSON, mantém a mensagem padrão
@@ -246,6 +324,7 @@ export default function PedidoFlow() {
     }
 
     if (data) {
+      idempotencyRef.current = null;
       setOrderResult({
         order_id: data.order_id,
         order_number: data.order_number ?? null,
@@ -266,6 +345,7 @@ export default function PedidoFlow() {
     setChangeFor("");
     setOrderResult(null);
     setSubmitError(null);
+    setCartNotice(null);
     setView("menu");
   }
 
@@ -288,7 +368,7 @@ export default function PedidoFlow() {
         <button
           type="button"
           onClick={() => window.location.reload()}
-          className="font-label-md text-label-md uppercase tracking-wider text-primary underline underline-offset-4"
+          className="min-h-11 font-label-md text-label-md uppercase tracking-wider text-primary underline underline-offset-4"
         >
           Tentar novamente
         </button>
@@ -305,7 +385,7 @@ export default function PedidoFlow() {
           esfirraItems={esfirraItems}
           bebidaItems={bebidaItems}
           minPizzaPrice={minPizzaPrice}
-          cartCount={cart.length}
+          cartCount={cartUnits}
           cartTotal={total}
           lojaFechada={lojaFechada}
           horarioTexto={horarioTexto}
@@ -318,6 +398,7 @@ export default function PedidoFlow() {
       {view === "checkout" && (
         <CheckoutScreen
           cart={cart}
+          notice={cartNotice}
           onRemoveItem={removeFromCart}
           customerName={customerName}
           onCustomerNameChange={setCustomerName}
@@ -337,7 +418,10 @@ export default function PedidoFlow() {
           onOrderNotesChange={setOrderNotes}
           total={total}
           submitting={submitting}
-          onBack={() => setView("menu")}
+          onBack={() => {
+            setCartNotice(null);
+            setView("menu");
+          }}
           onConfirm={confirmOrder}
         />
       )}
@@ -363,7 +447,9 @@ export default function PedidoFlow() {
           target={sheetTarget}
           pizzaSizes={pizzas}
           flavors={flavors}
-          cartCount={cart.length}
+          crusts={crusts}
+          cartLines={cart.length}
+          cartUnits={cartUnits}
           cartTotal={total}
           onClose={() => setSheetTarget(null)}
           onAddPizza={addPizzaToCart}

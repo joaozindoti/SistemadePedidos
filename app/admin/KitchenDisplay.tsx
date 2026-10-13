@@ -3,10 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/browserClient";
 import { Icon } from "@/lib/ui";
-import { playNewOrderBeep, unlockAudioOnFirstTouch } from "@/lib/sound";
+import { playNewOrderBeep } from "@/lib/sound";
+import SoundBanner from "./SoundBanner";
 import {
   ComandaPrint,
   clockTime,
+  customerName,
   elapsedMinutes,
   flavorLines,
   isDrink,
@@ -18,10 +20,8 @@ import {
   type Urgency,
 } from "./comanda";
 
-// "*" em vez de listar colunas: a tela continua abrindo mesmo que alguma
-// migration (accepted_at, order_number) ainda não tenha sido aplicada.
 const ORDER_SELECT = `
-  *,
+  id, order_number, order_type, notes, created_at, accepted_at, estimated_minutes, customer_name,
   customer:customers ( name ),
   items:order_items (
     id, quantity, item_notes,
@@ -77,12 +77,18 @@ export default function KitchenDisplay() {
   // null até o primeiro carregamento: os pedidos que já estavam na tela ao
   // abrir não tocam o aviso, só os que chegarem depois.
   const knownIdsRef = useRef<Set<string> | null>(null);
+  // Polling, Realtime e o botão disparam buscas que podem voltar fora de
+  // ordem; só a mais recente vale, senão uma resposta velha ressuscita um
+  // card que já foi marcado como pronto.
+  const requestSeqRef = useRef(0);
 
   const fetchOrders = useCallback(async () => {
+    const seq = ++requestSeqRef.current;
     const [{ data, error }, waitingRes] = await Promise.all([
       supabase.from("orders").select(ORDER_SELECT).eq("status", "preparo"),
       supabase.rpc("pedidos_aguardando_aceite"),
     ]);
+    if (seq !== requestSeqRef.current) return;
     if (!waitingRes.error) setWaitingCount(Number(waitingRes.data ?? 0));
 
     if (error) {
@@ -111,8 +117,6 @@ export default function KitchenDisplay() {
     setOrders(next);
     setLoadState("ready");
   }, [supabase]);
-
-  useEffect(() => unlockAudioOnFirstTouch(), []);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -198,6 +202,8 @@ export default function KitchenDisplay() {
     setActionError(null);
     const { error } = await supabase.from("orders").update(patch).eq("id", orderId);
     setSavingId(null);
+    // Invalida uma busca que saiu antes da mudança e ainda não voltou.
+    requestSeqRef.current++;
 
     if (error) {
       console.log("Falha ao marcar como pronto:", error);
@@ -253,6 +259,7 @@ export default function KitchenDisplay() {
 
   return (
     <div className="flex flex-col gap-space-md">
+      <SoundBanner size="lg" />
       <div className="flex flex-wrap items-center justify-between gap-space-sm">
         <div className="flex flex-wrap items-center gap-space-sm">
           <span className="flex items-center gap-space-xs rounded-full bg-primary px-space-md py-space-xs font-display text-2xl font-bold uppercase text-on-primary">
@@ -368,7 +375,7 @@ export default function KitchenDisplay() {
                 {/* Cliente e tipo */}
                 <div className="flex flex-col gap-space-xs px-space-md pt-space-md">
                   <p className="text-[28px] font-bold leading-tight text-on-surface">
-                    {order.customer?.name || "Cliente sem nome"}
+                    {customerName(order) || "Cliente sem nome"}
                   </p>
                   <div className="flex flex-wrap items-center gap-space-sm">
                     <span
@@ -485,6 +492,7 @@ export default function KitchenDisplay() {
                           onChange={(e) => setEstimateInput(e.target.value)}
                           onKeyDown={(e) => e.key === "Enter" && confirmDeliveryTime(order.id)}
                           placeholder="Min"
+                          aria-label="Tempo até a entrega em minutos"
                           className="h-16 w-24 rounded-lg border-2 border-outline-variant bg-surface-container-low text-center font-display text-4xl font-bold text-on-surface outline-none focus:border-primary"
                         />
                         <button

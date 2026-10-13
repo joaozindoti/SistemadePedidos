@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import type { Flavor, MenuItem } from "@/lib/types";
 import { flavorImage, isPackshot, PIZZA_IMAGE, simpleItemImage } from "@/lib/productImages";
@@ -122,6 +122,33 @@ export default function MenuScreen({
     return list;
   }, [allFlavors, esfirraItems, bebidaItems]);
 
+  // Loja fechada: tocar num item não abre nada, mas avisa o porquê (aviso
+  // flutuante + destaque no banner de fechado).
+  const [closedNotice, setClosedNotice] = useState(false);
+  const closedTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () => () => {
+      if (closedTimer.current) clearTimeout(closedTimer.current);
+    },
+    [],
+  );
+
+  function notifyClosed() {
+    setClosedNotice(true);
+    if (closedTimer.current) clearTimeout(closedTimer.current);
+    closedTimer.current = setTimeout(() => setClosedNotice(false), 4000);
+  }
+
+  function selectPizza() {
+    if (lojaFechada) notifyClosed();
+    else onSelectPizza();
+  }
+
+  function selectSimpleItem(item: MenuItem) {
+    if (lojaFechada) notifyClosed();
+    else onSelectSimpleItem(item);
+  }
+
   const [search, setSearch] = useState("");
   const [activePill, setActivePill] = useState<string>("todas");
 
@@ -200,7 +227,9 @@ export default function MenuScreen({
         {lojaFechada && (
           <div
             role="status"
-            className="mb-space-md flex items-start gap-space-sm rounded-2xl border border-outline-variant bg-surface-container-low p-space-md"
+            className={`mb-space-md flex items-start gap-space-sm rounded-2xl border bg-surface-container-low p-space-md transition-shadow ${
+              closedNotice ? "border-primary ring-2 ring-primary" : "border-outline-variant"
+            }`}
           >
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[50%] bg-primary/15 text-primary">
               <Icon name="bedtime" className="text-[24px]" />
@@ -217,7 +246,7 @@ export default function MenuScreen({
           </div>
         )}
 
-        <BrandHero onOrderNow={onSelectPizza} fechado={lojaFechada} />
+        <BrandHero onOrderNow={selectPizza} fechado={lojaFechada} />
 
         <InstallAppBanner />
 
@@ -280,7 +309,8 @@ export default function MenuScreen({
                 <article className="overflow-hidden rounded-2xl border border-outline-variant/60 bg-surface-container-low">
                   <button
                     type="button"
-                    onClick={onSelectPizza}
+                    onClick={selectPizza}
+                    aria-disabled={lojaFechada || undefined}
                     className="block w-full text-left"
                   >
                     <div className="relative h-44 w-full overflow-hidden bg-[#0b0b0c]">
@@ -337,7 +367,8 @@ export default function MenuScreen({
                       </div>
                       <button
                         type="button"
-                        onClick={onSelectPizza}
+                        onClick={selectPizza}
+                        aria-disabled={lojaFechada || undefined}
                         className="mt-space-xs flex min-h-12 w-full items-center justify-center gap-space-xs rounded-full bg-primary font-display text-xl font-extrabold uppercase tracking-wide text-on-primary transition-colors hover:bg-primary-container"
                       >
                         <Icon name={lojaFechada ? "schedule" : "add"} className="text-[22px]" />
@@ -358,7 +389,8 @@ export default function MenuScreen({
                         <button
                           key={flavor.id}
                           type="button"
-                          onClick={onSelectPizza}
+                          onClick={selectPizza}
+                          aria-disabled={lojaFechada || undefined}
                           className="flex w-28 shrink-0 snap-start flex-col items-center gap-space-xs text-center"
                         >
                           <span className="relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-[50%] bg-[#0b0b0c] ring-2 ring-outline-variant/70">
@@ -391,7 +423,8 @@ export default function MenuScreen({
                   <button
                     key={item.id}
                     type="button"
-                    onClick={() => onSelectSimpleItem(item)}
+                    onClick={() => selectSimpleItem(item)}
+                    aria-disabled={lojaFechada || undefined}
                     className="flex w-full items-center gap-space-md rounded-2xl border border-outline-variant/60 bg-surface-container-low p-space-sm text-left transition-colors hover:border-outline"
                   >
                     <ProductThumb
@@ -425,15 +458,34 @@ export default function MenuScreen({
         ))}
       </main>
 
+      <div
+        role="status"
+        className={`pointer-events-none fixed inset-x-4 z-50 mx-auto max-w-lg ${cartCount > 0 ? "bottom-24" : "bottom-4"}`}
+      >
+        {closedNotice && (
+          <p className="flex items-start gap-space-sm rounded-2xl bg-inverse-surface px-space-md py-space-sm font-body-md text-body-md font-semibold text-inverse-on-surface shadow-[0_8px_28px_rgba(0,0,0,0.45)]">
+            <Icon name="bedtime" className="mt-0.5 text-[20px]" />
+            <span>
+              Estamos fechados agora{horarioTexto ? ` — funcionamos ${horarioTexto}` : ""}. Volta
+              nesse horário pra pedir!
+            </span>
+          </p>
+        )}
+      </div>
+
       {cartCount > 0 && (
         <div className="fixed inset-x-4 bottom-4 z-40 mx-auto max-w-lg">
           <button
             type="button"
             onClick={onOpenCart}
+            aria-label={`Ver sacola: ${cartCount} ${cartCount === 1 ? "item" : "itens"}, ${formatBRL(cartTotal)}`}
             className="flex w-full cursor-pointer items-center justify-between rounded-full bg-primary p-space-sm pl-space-sm pr-space-md font-bold text-on-primary shadow-[0_8px_28px_rgba(0,0,0,0.45)] transition-colors hover:bg-primary-container"
           >
             <div className="flex items-center gap-space-sm">
-              <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-on-primary text-primary">
+              <div
+                aria-hidden="true"
+                className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-on-primary text-primary"
+              >
                 <Icon name="shopping_bag" className="text-[22px]" />
                 <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-alert px-1 text-[11px] font-bold text-on-alert">
                   {cartCount}

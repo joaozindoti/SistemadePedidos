@@ -30,13 +30,13 @@ export default function SuccessScreen({
         {label}
       </h1>
       <p className="mt-space-sm max-w-xs font-body-md text-body-md text-on-surface-variant">
-        Já recebemos! Vamos te avisando por aqui e pelo WhatsApp conforme o pedido for andando.
+        Já recebemos! Vamos te avisando pelo WhatsApp conforme o pedido for andando.
       </p>
       <p className="mt-space-lg font-display text-3xl font-extrabold text-primary">{formatBRL(total)}</p>
       <button
         type="button"
         onClick={onNewOrder}
-        className="mt-space-xl font-label-md text-label-md uppercase tracking-wider text-on-surface-variant underline underline-offset-4 transition-colors hover:text-on-surface"
+        className="mt-space-xl min-h-11 font-label-md text-label-md uppercase tracking-wider text-on-surface-variant underline underline-offset-4 transition-colors hover:text-on-surface"
       >
         Fazer novo pedido
       </button>

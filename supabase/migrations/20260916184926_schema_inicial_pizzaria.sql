@@ -128,7 +128,9 @@ create policy "bordas publicas" on public.crusts for select using (active = true
 
 -- pedidos, itens e clientes NÃO têm policy de insert pro client anônimo.
 -- toda escrita passa pela Edge Function create-order, que usa a service role key
--- (bypassa RLS) depois de validar o token assinado vindo do link do WhatsApp.
+-- (bypassa RLS). Ela é pública (sem token assinado nem login do cliente): valida
+-- o carrinho e o horário, aplica rate limit por telefone e por IP e grava tudo
+-- pela RPC criar_pedido (ver 20261012120000_pedido_transacional_cancelado.sql).
 
 create policy "admin le tudo" on public.orders for select using (auth.role() = 'authenticated');
 create policy "admin atualiza status" on public.orders for update using (auth.role() = 'authenticated');

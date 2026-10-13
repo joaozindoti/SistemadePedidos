@@ -1,12 +1,12 @@
 // supabase/functions/whatsapp-connect/index.ts
-import { serve } from "https://deno.land/std@0.220.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.116.0";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SUPABASE_ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
 const EVOLUTION_API_URL = Deno.env.get("EVOLUTION_API_URL")!;
 const EVOLUTION_API_KEY = Deno.env.get("EVOLUTION_API_KEY")!;
 const EVOLUTION_INSTANCE_NAME = Deno.env.get("EVOLUTION_INSTANCE_NAME")!;
+const EVOLUTION_TIMEOUT_MS = 8000;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -25,11 +25,13 @@ function jsonResponse(body: unknown, status: number) {
 async function getStatus() {
   const res = await fetch(
     `${EVOLUTION_API_URL}/instance/connectionState/${EVOLUTION_INSTANCE_NAME}`,
-    { headers: { apikey: EVOLUTION_API_KEY } },
+    { headers: { apikey: EVOLUTION_API_KEY }, signal: AbortSignal.timeout(EVOLUTION_TIMEOUT_MS) },
   );
   const body = await res.json().catch(() => ({}) as Record<string, unknown>);
   if (!res.ok) {
-    return { state: "erro" as const, detail: body };
+    // O painel só usa state; o corpo da Evolution fica no log.
+    console.error(`Evolution API retornou ${res.status} no status:`, JSON.stringify(body).slice(0, 300));
+    return { state: "erro" as const };
   }
   // A Evolution API responde com { instance: { instanceName, state } } (v2)
   // ou { state } dependendo da versão, então cobrimos os dois formatos.
@@ -50,6 +52,7 @@ async function ensureInstanceExists() {
       qrcode: true,
       integration: "WHATSAPP-BAILEYS",
     }),
+    signal: AbortSignal.timeout(EVOLUTION_TIMEOUT_MS),
   });
 
   if (res.ok) return;
@@ -58,7 +61,7 @@ async function ensureInstanceExists() {
   // A instância já existir não é erro pra nós: só significa que já dá pra conectar.
   if (/already in use|already exists|já existe/i.test(bodyText)) return;
 
-  throw new Error(`Falha ao criar instância (${res.status}): ${bodyText}`);
+  throw new Error(`Falha ao criar instância (${res.status}): ${bodyText.slice(0, 300)}`);
 }
 
 async function connect() {
@@ -66,11 +69,11 @@ async function connect() {
 
   const res = await fetch(
     `${EVOLUTION_API_URL}/instance/connect/${EVOLUTION_INSTANCE_NAME}`,
-    { headers: { apikey: EVOLUTION_API_KEY } },
+    { headers: { apikey: EVOLUTION_API_KEY }, signal: AbortSignal.timeout(EVOLUTION_TIMEOUT_MS) },
   );
   const body = await res.json().catch(() => ({}) as Record<string, unknown>);
   if (!res.ok) {
-    throw new Error(`Falha ao conectar (${res.status}): ${JSON.stringify(body)}`);
+    throw new Error(`Falha ao conectar (${res.status}): ${JSON.stringify(body).slice(0, 300)}`);
   }
 
   const data = body as {
@@ -83,7 +86,7 @@ async function connect() {
   return { qrcode, state };
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders });
   }

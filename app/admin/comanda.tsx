@@ -18,12 +18,14 @@ export interface ComandaItem {
 
 export interface ComandaOrder {
   id: string;
-  order_number?: number | null;
+  order_number: number | null;
   order_type: "entrega" | "retirada";
   notes: string | null;
   created_at: string;
   accepted_at?: string | null;
   estimated_minutes?: number | null;
+  // Nome digitado neste pedido; o cadastro em customers guarda só o último.
+  customer_name?: string | null;
   customer: { name: string | null; phone?: string } | null;
   items: ComandaItem[];
   payment_method?: string;
@@ -42,11 +44,15 @@ export const PAYMENT_LABELS: Record<string, string> = {
   pix: "Pix",
 };
 
-// "07" pra pedidos com número do dia; sem a migration de numeração aplicada
-// cai no começo do uuid, que era o que a tela mostrava antes.
+// "07" pra pedidos com número do dia. O trigger sempre numera; o fallback pro
+// começo do uuid só cobre um pedido que chegue sem número por algum erro.
 export function orderNumberLabel(order: Pick<ComandaOrder, "id" | "order_number">): string {
   if (order.order_number != null) return String(order.order_number).padStart(2, "0");
   return order.id.slice(0, 4).toUpperCase();
+}
+
+export function customerName(order: Pick<ComandaOrder, "customer_name" | "customer">): string | null {
+  return order.customer_name || order.customer?.name || null;
 }
 
 const FRACTIONS: Record<number, string> = { 2: "½", 3: "⅓", 4: "¼" };
@@ -136,7 +142,7 @@ export function ComandaPrint({ order }: { order: ComandaOrder | null }) {
           </span>
         </div>
         <div style={{ fontWeight: 700, fontSize: "14pt" }}>
-          {order.customer?.name || "Cliente sem nome"}
+          {customerName(order) || "Cliente sem nome"}
         </div>
         <div style={{ fontWeight: 800, fontSize: "12pt" }}>
           {order.order_type === "entrega" ? "» ENTREGA" : "» RETIRADA NO BALCÃO"}

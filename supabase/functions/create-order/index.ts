@@ -1,44 +1,24 @@
 // supabase/functions/create-order/index.ts
-import { serve } from "https://deno.land/std@0.220.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { createClient } from "npm:@supabase/supabase-js@2.116.0";
+import { type CreateOrderInput, InputError, parseBody } from "./validation.ts";
+import { changeError, type ExtraRow, type MenuItemRow, priceOrder } from "./pricing.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-interface OrderItemInput {
-  menu_item_id: string;
-  flavor_ids?: string[];
-  crust_id?: string;
-  quantity: number;
-  item_notes?: string;
-}
+const IPV4_RE = /^(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}$/;
+const IPV6_RE = /^[0-9a-f:.]{2,45}$/i;
 
-interface AddressInput {
-  street: string;
-  number: string;
-  complement?: string;
-  neighborhood: string;
-  city: string;
-}
-
-interface CreateOrderBody {
-  name: string;
-  phone: string;
-  order_type: "entrega" | "retirada";
-  address?: AddressInput;
-  payment_method: "dinheiro" | "cartao" | "pix";
-  // Só pra dinheiro: quanto o cliente vai entregar ("troco para R$ 100").
-  change_for?: number | null;
-  notes?: string;
-  items: OrderItemInput[];
-}
-
-function normalizePhone(raw: string): string {
-  const digits = raw.replace(/\D/g, "");
-  if (digits.length <= 11 && !digits.startsWith("55")) {
-    return `55${digits}`;
-  }
-  return digits;
+// Primeiro valor do x-forwarded-for: é o padrão documentado do Supabase Edge
+// para o IP do cliente. Só aceita algo com cara de IP; valor arbitrário no
+// cabeçalho não pode estourar o índice da tabela de tentativas nem virar
+// chave de limite. Fora disso vira null e só o limite por telefone vale.
+function clientIp(req: Request): string | null {
+  const forwarded = req.headers.get("x-forwarded-for");
+  const first = forwarded?.split(",")[0]?.trim();
+  if (!first || first.length > 45) return null;
+  if (IPV4_RE.test(first) || (first.includes(":") && IPV6_RE.test(first))) return first;
+  return null;
 }
 
 const corsHeaders = {
@@ -55,7 +35,7 @@ function jsonResponse(body: unknown, status: number) {
   });
 }
 
-serve(async (req) => {
+async function handle(req: Request): Promise<Response> {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: corsHeaders });
   }
@@ -64,51 +44,59 @@ serve(async (req) => {
     return jsonResponse({ error: "Method not allowed" }, 405);
   }
 
-  let body: CreateOrderBody;
+  let raw: unknown;
   try {
-    body = await req.json();
+    raw = await req.json();
   } catch {
     return jsonResponse({ error: "JSON inválido" }, 400);
   }
 
-  if (!body.name || !body.phone) {
-    return jsonResponse({ error: "Nome e telefone são obrigatórios" }, 400);
-  }
-
-  const phone = normalizePhone(body.phone);
-  if (phone.length < 10) {
-    return jsonResponse({ error: "Telefone inválido" }, 400);
-  }
-
-  if (!body.items || body.items.length === 0) {
-    return jsonResponse({ error: "Carrinho vazio" }, 400);
-  }
-
-  if (body.order_type === "entrega") {
-    const missing: string[] = [];
-    if (!body.address?.street?.trim()) missing.push("rua");
-    if (!body.address?.number?.trim()) missing.push("número");
-    if (!body.address?.neighborhood?.trim()) missing.push("bairro");
-    if (!body.address?.city?.trim()) missing.push("cidade");
-    if (missing.length > 0) {
-      return jsonResponse(
-        { error: `Endereço incompleto: falta ${missing.join(", ")}` },
-        400,
-      );
-    }
-  }
-
-  if (!["dinheiro", "cartao", "pix"].includes(body.payment_method)) {
-    return jsonResponse({ error: "Forma de pagamento inválida" }, 400);
+  let body: CreateOrderInput;
+  try {
+    body = parseBody(raw);
+  } catch (err) {
+    if (err instanceof InputError) return jsonResponse({ error: err.message }, 400);
+    throw err;
   }
 
   const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+
+  // Reenvio do mesmo checkout (resposta anterior se perdeu): devolve o pedido
+  // já gravado antes de checar limite e horário, senão o cliente que já pediu
+  // levaria um "loja fechada" ou "muitas tentativas" na cara. A RPC também
+  // trata a chave, então isto é só um atalho; se falhar, segue o fluxo.
+  if (body.idempotency_key) {
+    const { data: existing, error: existingError } = await supabase
+      .from("orders")
+      .select("id, order_number, total, customer:customers ( phone )")
+      .eq("idempotency_key", body.idempotency_key)
+      .maybeSingle();
+    if (existingError) {
+      console.error("Falha ao procurar pedido pela chave de idempotência:", existingError);
+    } else if (existing) {
+      const customer = Array.isArray(existing.customer) ? existing.customer[0] : existing.customer;
+      if (customer?.phone !== body.phone) {
+        return jsonResponse({ error: "Esse pedido já foi enviado por outro telefone" }, 409);
+      }
+      return jsonResponse(
+        {
+          order_id: existing.id,
+          order_number: existing.order_number ?? null,
+          total: Number(existing.total),
+          reused: true,
+        },
+        200,
+      );
+    }
+  }
 
   // O cardápio já bloqueia fora do horário, mas a página pode ter ficado
   // aberta desde antes das 23h — a palavra final é daqui.
   const { data: aberta, error: horarioError } = await supabase.rpc("loja_aberta");
   if (horarioError) {
-    console.error("Falha ao consultar horário de funcionamento:", horarioError);
+    // Fail open (decisão D2): se a consulta falhar, o pedido entra mesmo
+    // fora do horário. Fica no log pra alguém perceber.
+    console.error("HORÁRIO INDISPONÍVEL (pedido aceito sem checar se a loja está aberta):", horarioError);
   } else if (aberta === false) {
     return jsonResponse(
       { error: "A pizzaria está fechada agora. Volte no nosso horário de funcionamento!" },
@@ -116,194 +104,142 @@ serve(async (req) => {
     );
   }
 
-  const { data: customer, error: customerError } = await supabase
-    .from("customers")
-    .upsert(
-      { phone, name: body.name },
-      { onConflict: "phone" },
-    )
-    .select("id")
-    .single();
-
-  if (customerError || !customer) {
-    return jsonResponse({ error: "Falha ao registrar cliente" }, 500);
-  }
-
-  const menuItemIds = body.items.map((i) => i.menu_item_id);
+  const menuItemIds = [...new Set(body.items.map((i) => i.menu_item_id))];
   const { data: menuItems, error: menuError } = await supabase
     .from("menu_items")
-    .select("id, base_price, active, max_flavors")
+    .select("id, name, category, base_price, active, max_flavors")
     .in("id", menuItemIds);
 
   if (menuError || !menuItems) {
+    console.error("Falha ao buscar itens do cardápio:", menuError);
     return jsonResponse({ error: "Falha ao validar cardápio" }, 500);
   }
 
-  const allFlavorIds = [
-    ...new Set(body.items.flatMap((i) => i.flavor_ids ?? [])),
+  const allFlavorIds = [...new Set(body.items.flatMap((i) => i.flavor_ids))];
+  const crustIds = [
+    ...new Set(body.items.map((i) => i.crust_id).filter((id): id is string => id !== null)),
   ];
-  const crustIds = [...new Set(body.items.map((i) => i.crust_id).filter(Boolean))] as string[];
 
-  const { data: flavors } = allFlavorIds.length
-    ? await supabase.from("flavors").select("id, extra_price, active").in("id", allFlavorIds)
-    : { data: [] as { id: string; extra_price: number; active: boolean }[] };
-
-  const { data: crusts } = crustIds.length
-    ? await supabase.from("crusts").select("id, extra_price, active").in("id", crustIds)
-    : { data: [] as { id: string; extra_price: number; active: boolean }[] };
-
-  let total = 0;
-  const orderItemsToInsert: Array<{
-    menu_item_id: string;
-    crust_id?: string;
-    quantity: number;
-    unit_price: number;
-    item_notes?: string;
-    flavor_ids: string[];
-  }> = [];
-
-  for (const item of body.items) {
-    const menuItem = menuItems.find((m) => m.id === item.menu_item_id);
-    if (!menuItem || !menuItem.active) {
-      return jsonResponse({ error: `Item indisponível: ${item.menu_item_id}` }, 400);
+  let flavors: ExtraRow[] = [];
+  if (allFlavorIds.length) {
+    const { data, error } = await supabase
+      .from("flavors")
+      .select("id, name, extra_price, active")
+      .in("id", allFlavorIds);
+    if (error || !data) {
+      console.error("Falha ao buscar sabores:", error);
+      return jsonResponse({ error: "Falha ao validar cardápio" }, 500);
     }
-
-    const flavorIds = item.flavor_ids ?? [];
-
-    if (menuItem.max_flavors !== null && flavorIds.length > 0) {
-      if (flavorIds.length > menuItem.max_flavors) {
-        return jsonResponse(
-          { error: `Esse tamanho aceita no máximo ${menuItem.max_flavors} sabor(es)` },
-          400,
-        );
-      }
-    }
-
-    let unitPrice = Number(menuItem.base_price);
-    let maxFlavorExtra = 0;
-
-    for (const flavorId of flavorIds) {
-      const flavor = flavors?.find((f) => f.id === flavorId);
-      if (!flavor || !flavor.active) {
-        return jsonResponse({ error: "Sabor indisponível" }, 400);
-      }
-      maxFlavorExtra = Math.max(maxFlavorExtra, Number(flavor.extra_price));
-    }
-    unitPrice += maxFlavorExtra;
-
-    if (item.crust_id) {
-      const crust = crusts?.find((c) => c.id === item.crust_id);
-      if (!crust || !crust.active) {
-        return jsonResponse({ error: "Borda indisponível" }, 400);
-      }
-      unitPrice += Number(crust.extra_price);
-    }
-
-    const quantity = Math.max(1, Math.floor(item.quantity || 1));
-    total += unitPrice * quantity;
-
-    orderItemsToInsert.push({
-      menu_item_id: item.menu_item_id,
-      crust_id: item.crust_id,
-      quantity,
-      unit_price: unitPrice,
-      item_notes: item.item_notes,
-      flavor_ids: flavorIds,
-    });
+    flavors = data;
   }
 
-  const address = body.order_type === "entrega" ? body.address : undefined;
-
-  let changeFor: number | null = null;
-  if (body.payment_method === "dinheiro" && body.change_for != null) {
-    const value = Number(body.change_for);
-    if (!Number.isFinite(value) || value <= 0) {
-      return jsonResponse({ error: "Valor do troco inválido" }, 400);
+  let crusts: ExtraRow[] = [];
+  if (crustIds.length) {
+    const { data, error } = await supabase
+      .from("crusts")
+      .select("id, name, extra_price, active")
+      .in("id", crustIds);
+    if (error || !data) {
+      console.error("Falha ao buscar bordas:", error);
+      return jsonResponse({ error: "Falha ao validar cardápio" }, 500);
     }
-    // Centavos pra não esbarrar em 49.99999 < 50.
-    if (Math.round(value * 100) < Math.round(total * 100)) {
-      return jsonResponse(
-        { error: `O troco precisa ser para um valor igual ou maior que o total (${total.toFixed(2).replace(".", ",")})` },
-        400,
-      );
-    }
-    changeFor = Math.round(value * 100) / 100;
+    crusts = data;
   }
 
-  const { data: order, error: orderError } = await supabase
-    .from("orders")
-    .insert({
-      customer_id: customer.id,
+  // Item esgotado volta com { error, code, ids } para o front tirar da sacola.
+  const priced = priceOrder(body.items, menuItems as MenuItemRow[], flavors, crusts);
+  if (!priced.ok) {
+    return jsonResponse({ error: priced.error, code: priced.code, ids: priced.ids }, 400);
+  }
+  const orderItems = priced.items;
+
+  const trocoInvalido = changeError(body.change_for, priced.totalCents);
+  if (trocoInvalido) {
+    return jsonResponse({ error: trocoInvalido }, 400);
+  }
+
+  // Conta a tentativa só depois que o pedido passou em toda a validação:
+  // payload inválido com o telefone de outra pessoa não pode deixar esse
+  // cliente bloqueado no limite.
+  const { data: permitido, error: limiteError } = await supabase.rpc(
+    "registrar_tentativa_pedido",
+    { p_ip: clientIp(req), p_phone: body.phone },
+  );
+  if (limiteError) {
+    // Fail closed: se o banco caiu, o criar_pedido falharia logo depois do
+    // mesmo jeito; aceitar aqui só abriria brecha para furar o limite.
+    console.error("RATE LIMIT INDISPONÍVEL (pedido recusado):", limiteError);
+    return jsonResponse({ error: "Não conseguimos registrar seu pedido agora. Tente de novo em instantes." }, 503);
+  }
+  if (permitido === false) {
+    return jsonResponse(
+      { error: "Muitas tentativas de pedido em pouco tempo. Aguarde alguns minutos e tente de novo." },
+      429,
+    );
+  }
+
+  // Cliente, pedido, itens e sabores gravados num único commit pela RPC.
+  // Ela calcula e grava o total a partir de unit_price × quantity, não
+  // sobrescreve o nome de cliente já cadastrado e, se a chave de
+  // idempotência já existir, devolve o pedido anterior com reused = true.
+  const address = body.address;
+  const { data: created, error: createError } = await supabase.rpc("criar_pedido", {
+    p: {
+      idempotency_key: body.idempotency_key,
+      phone: body.phone,
+      name: body.name,
       order_type: body.order_type,
       payment_method: body.payment_method,
-      change_for: changeFor,
-      notes: body.notes ?? null,
-      total,
-      address_street: address?.street.trim() ?? null,
-      address_number: address?.number.trim() ?? null,
-      address_complement: address?.complement?.trim() || null,
-      address_neighborhood: address?.neighborhood.trim() ?? null,
-      address_city: address?.city.trim() ?? null,
-    })
-    // "*" em vez de "id, order_number": continua funcionando se a função
-    // for publicada antes da migration que cria order_number.
-    .select("*")
-    .single();
+      change_for: body.change_for,
+      notes: body.notes,
+      address_street: address?.street ?? null,
+      address_number: address?.number ?? null,
+      address_complement: address?.complement ?? null,
+      address_neighborhood: address?.neighborhood ?? null,
+      address_city: address?.city ?? null,
+      items: orderItems,
+    },
+  });
 
-  if (orderError || !order) {
+  if (createError || !created) {
+    console.error("Falha ao gravar pedido (criar_pedido):", createError);
+    // 23505: a chave de idempotência já pertence a pedido de outro telefone.
+    if (createError?.code === "23505") {
+      return jsonResponse({ error: "Esse pedido já foi enviado por outro telefone" }, 409);
+    }
+    // Payload malformado, cast, FK ou CHECK: a validação acima deveria ter
+    // barrado, mas um item pode ter sido apagado do cardápio no meio do caminho.
+    if (["22023", "22P02", "22003", "23502", "23503", "23514"].includes(createError?.code ?? "")) {
+      return jsonResponse({ error: "Pedido inválido ou item indisponível. Atualize o cardápio e tente de novo." }, 400);
+    }
     return jsonResponse({ error: "Falha ao criar pedido" }, 500);
   }
 
-  // Se um item ou sabor falhar, o pedido já gravado precisa sumir: senão fica
-  // um pedido "fantasma" em pendente e o cliente, vendo o erro, pede de novo.
-  // Tenta apagar duas vezes e, se ainda assim falhar, deixa o id no log da
-  // função pra limpeza manual.
-  async function rollbackOrder(orderId: string) {
-    for (let attempt = 1; attempt <= 2; attempt++) {
-      const { error } = await supabase.from("orders").delete().eq("id", orderId);
-      if (!error) return;
-      console.error(`rollback do pedido ${orderId} falhou (tentativa ${attempt}):`, error);
-    }
-    console.error(`PEDIDO FANTASMA: ${orderId} ficou sem itens, apagar manualmente`);
-  }
-
-  for (const item of orderItemsToInsert) {
-    const { data: insertedItem, error: itemError } = await supabase
-      .from("order_items")
-      .insert({
-        order_id: order.id,
-        menu_item_id: item.menu_item_id,
-        crust_id: item.crust_id,
-        quantity: item.quantity,
-        unit_price: item.unit_price,
-        item_notes: item.item_notes,
-      })
-      .select("id")
-      .single();
-
-    if (itemError || !insertedItem) {
-      await rollbackOrder(order.id);
-      return jsonResponse({ error: "Falha ao gravar itens do pedido" }, 500);
-    }
-
-    if (item.flavor_ids.length > 0) {
-      const flavorRows = item.flavor_ids.map((flavor_id) => ({
-        order_item_id: insertedItem.id,
-        flavor_id,
-      }));
-      const { error: flavorError } = await supabase
-        .from("order_item_flavors")
-        .insert(flavorRows);
-
-      if (flavorError) {
-        await rollbackOrder(order.id);
-        return jsonResponse({ error: "Falha ao gravar sabores do pedido" }, 500);
-      }
-    }
-  }
+  const result = created as {
+    order_id: string;
+    order_number: number | null;
+    total: number;
+    reused: boolean;
+  };
 
   return jsonResponse(
-    { order_id: order.id, order_number: order.order_number ?? null, total },
+    {
+      order_id: result.order_id,
+      order_number: result.order_number ?? null,
+      total: Number(result.total),
+      reused: result.reused === true,
+    },
     200,
   );
+}
+
+Deno.serve(async (req) => {
+  try {
+    return await handle(req);
+  } catch (err) {
+    // Qualquer exceção não prevista ainda responde com CORS, senão o
+    // navegador mostra erro de rede em vez da mensagem.
+    console.error("Erro inesperado no create-order:", err);
+    return jsonResponse({ error: "Falha ao criar pedido" }, 500);
+  }
 });

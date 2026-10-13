@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:functions": "npx -y deno@2 test supabase/functions",
+    "check:functions": "npx -y deno@2 check supabase/functions/create-order/index.ts supabase/functions/send-status-notification/index.ts supabase/functions/whatsapp-connect/index.ts supabase/functions/whatsapp-webhook/index.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

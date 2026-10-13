@@ -46,3 +46,10 @@ supabase/.branches
 
 # capturas/logs do Playwright MCP
 .playwright-mcp/
+
+# anotações locais com segredos da Evolution (nunca versionar)
+evolution*.txt
+
+# lock que o `deno check`/`deno test` cria na raiz
+deno.lock
+vistoria/

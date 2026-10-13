@@ -142,7 +142,7 @@ export function InstallAppBanner() {
         <button
           type="button"
           onClick={() => (mode === "nativo" ? promptNativeInstall() : setShowSteps((v) => !v))}
-          className="shrink-0 rounded-full bg-primary px-space-md py-space-xs font-display text-base font-extrabold uppercase text-on-primary transition-colors hover:bg-primary-container"
+          className="min-h-11 shrink-0 rounded-full bg-primary px-space-md py-space-xs font-display text-base font-extrabold uppercase text-on-primary transition-colors hover:bg-primary-container"
         >
           Instalar
         </button>
@@ -150,7 +150,7 @@ export function InstallAppBanner() {
           type="button"
           onClick={dismiss}
           aria-label="Fechar convite para instalar"
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-on-surface-variant transition-colors hover:bg-surface-container hover:text-on-surface"
         >
           <Icon name="close" className="text-[18px]" />
         </button>
