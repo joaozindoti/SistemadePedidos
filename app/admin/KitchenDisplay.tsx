@@ -72,6 +72,9 @@ export default function KitchenDisplay() {
   // Pedidos que ainda não foram aceitos no balcão — a cozinha não vê o
   // conteúdo, só quantos vêm por aí.
   const [waitingCount, setWaitingCount] = useState(0);
+  // Pedido novo toca e repete a cada 10 s até alguém tocar na tela: a cozinha
+  // é barulhenta e o tablet fica longe, um bipe só passa despercebido.
+  const [alarm, setAlarm] = useState(false);
   const [now, setNow] = useState(() => Date.now());
 
   // null até o primeiro carregamento: os pedidos que já estavam na tela ao
@@ -102,6 +105,7 @@ export default function KitchenDisplay() {
       const arrived = next.filter((o) => !known.has(o.id)).map((o) => o.id);
       if (arrived.length > 0) {
         playNewOrderBeep(2);
+        setAlarm(true);
         setFreshIds((current) => new Set([...current, ...arrived]));
         setTimeout(() => {
           setFreshIds((current) => {
@@ -128,6 +132,19 @@ export default function KitchenDisplay() {
       clearInterval(clock);
     };
   }, [fetchOrders]);
+
+  useEffect(() => {
+    if (!alarm) return;
+    const repeat = setInterval(() => playNewOrderBeep(2), 10000);
+    const stop = () => setAlarm(false);
+    window.addEventListener("pointerdown", stop);
+    window.addEventListener("keydown", stop);
+    return () => {
+      clearInterval(repeat);
+      window.removeEventListener("pointerdown", stop);
+      window.removeEventListener("keydown", stop);
+    };
+  }, [alarm]);
 
   useEffect(() => {
     let cancelled = false;
@@ -259,7 +276,7 @@ export default function KitchenDisplay() {
 
   return (
     <div className="flex flex-col gap-space-md">
-      <SoundBanner size="lg" />
+      <SoundBanner size="lg" overlay />
       <div className="flex flex-wrap items-center justify-between gap-space-sm">
         <div className="flex flex-wrap items-center gap-space-sm">
           <span className="flex items-center gap-space-xs rounded-full bg-primary px-space-md py-space-xs font-display text-2xl font-bold uppercase text-on-primary">

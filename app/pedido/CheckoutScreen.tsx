@@ -1,7 +1,7 @@
 "use client";
 
 import { useId } from "react";
-import { ORDER_LIMITS, type Address, type CartItem } from "@/lib/types";
+import { ORDER_LIMITS, type Address, type CartItem, type TaxaEntrega } from "@/lib/types";
 import { formatBRL, Icon } from "./icons";
 import { parseMoney as parseMoneyAny } from "@/lib/ui";
 
@@ -73,6 +73,9 @@ export default function CheckoutScreen({
   lojaFechada,
   horarioTexto,
   total,
+  subtotal,
+  deliveryFee,
+  cidades,
   submitting,
   onBack,
   onConfirm,
@@ -97,6 +100,9 @@ export default function CheckoutScreen({
   lojaFechada: boolean;
   horarioTexto: string | null;
   total: number;
+  subtotal: number;
+  deliveryFee: number;
+  cidades: TaxaEntrega[];
   submitting: boolean;
   onBack: () => void;
   onConfirm: () => void;
@@ -414,15 +420,20 @@ export default function CheckoutScreen({
               <label htmlFor={ids.city} className={SMALL_LABEL_CLASS}>
                 Cidade
               </label>
-              <input
+              <select
                 id={ids.city}
                 value={address.city}
-                maxLength={ORDER_LIMITS.addressFieldMax}
                 onChange={(e) => onAddressChange({ city: e.target.value })}
                 autoComplete="address-level2"
-                enterKeyHint="done"
                 className={INPUT_CLASS}
-              />
+              >
+                <option value="">Escolha a cidade</option>
+                {cidades.map((c) => (
+                  <option key={c.cidade} value={c.cidade}>
+                    {c.cidade} (entrega {formatBRL(Number(c.valor))})
+                  </option>
+                ))}
+              </select>
             </div>
           </fieldset>
         )}
@@ -560,7 +571,9 @@ export default function CheckoutScreen({
           <div className="flex items-center justify-between gap-space-md">
             <div className="flex flex-col">
               <span className="font-label-sm text-label-sm text-on-surface-variant">
-                Total
+                {deliveryFee > 0
+                  ? `Total (${formatBRL(subtotal)} + entrega ${formatBRL(deliveryFee)})`
+                  : "Total"}
               </span>
               <span className="font-label-lg text-label-lg text-primary">
                 {formatBRL(total)}

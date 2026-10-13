@@ -132,11 +132,15 @@ Deno.serve(async (req) => {
     if (deveAvisar) {
       const { data: config } = await supabase
         .from("loja_config")
-        .select("abre_as, fecha_as")
+        .select("abre_as, fecha_as, dias_folga")
         .eq("id", 1)
         .maybeSingle();
+      const DIAS = ["", "segunda", "terça", "quarta", "quinta", "sexta", "sábado", "domingo"];
+      const folga = ((config?.dias_folga ?? []) as number[]).map((d) => DIAS[d]).filter(Boolean).join(" e ");
       const horario = config
-        ? ` Nosso horário é das ${formatHour(config.abre_as)} às ${formatHour(config.fecha_as)}.`
+        ? ` Nosso horário é das ${formatHour(config.abre_as)} às ${formatHour(config.fecha_as)}${
+          folga ? `, exceto ${folga}` : ""
+        }.`
         : "";
       await sendText(
         phone,

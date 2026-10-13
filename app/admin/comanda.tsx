@@ -30,6 +30,7 @@ export interface ComandaOrder {
   items: ComandaItem[];
   payment_method?: string;
   total?: number;
+  delivery_fee?: number | null;
   change_for?: number | null;
   address_street?: string | null;
   address_number?: string | null;
@@ -216,7 +217,10 @@ export function ComandaPrint({ order }: { order: ComandaOrder | null }) {
               </div>
             )}
             {order.total != null && (
-              <div style={{ fontWeight: 800, fontSize: "13pt" }}>Total: {formatBRL(Number(order.total))}</div>
+              <div style={{ fontWeight: 800, fontSize: "13pt" }}>
+                Total: {formatBRL(Number(order.total))}
+                {Number(order.delivery_fee ?? 0) > 0 && ` (com entrega ${formatBRL(Number(order.delivery_fee))})`}
+              </div>
             )}
             {changeLabel(order) && (
               <div style={{ fontWeight: 800, fontSize: "11pt", border: "1.5px solid #000", padding: "2px 6px", marginTop: "3px" }}>

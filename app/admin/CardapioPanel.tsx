@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/browserClient";
 import { formatBRL, Icon, parseMoney } from "@/lib/ui";
-import { fetchLojaStatus, formatHora, type LojaStatus, type ModoLoja } from "@/lib/loja";
+import { DIAS_SEMANA, fetchLojaStatus, formatHora, textoFolga, type LojaStatus, type ModoLoja } from "@/lib/loja";
 import type { Crust, Flavor, MenuItem } from "@/lib/types";
 
 // ───────────── aviso de salvo / erro ─────────────
@@ -460,7 +460,10 @@ function HorarioCard({ onToast }: { onToast: (kind: "ok" | "erro", text: string)
     return () => clearInterval(interval);
   }, [load]);
 
-  async function save(patch: { abre_as?: string; fecha_as?: string; modo?: ModoLoja }, okText: string) {
+  async function save(
+    patch: { abre_as?: string; fecha_as?: string; modo?: ModoLoja; dias_folga?: number[] },
+    okText: string,
+  ) {
     setSaving(true);
     const { error } = await supabase.from("loja_config").update(patch).eq("id", 1);
     setSaving(false);
@@ -577,6 +580,39 @@ function HorarioCard({ onToast }: { onToast: (kind: "ok" | "erro", text: string)
           <Icon name="check" className="text-[18px]" />
           Salvar horário
         </button>
+      </div>
+      <div className="flex flex-col gap-space-xs">
+        <span className="font-label-sm text-label-sm uppercase text-on-surface-variant">
+          Dia de folga (não abre no automático)
+        </span>
+        <div className="flex flex-wrap gap-space-xs">
+          {[1, 2, 3, 4, 5, 6, 7].map((dia) => {
+            const folgas = status.config?.dias_folga ?? [];
+            const folga = folgas.includes(dia);
+            const next = folga ? folgas.filter((d) => d !== dia) : [...folgas, dia];
+            return (
+              <button
+                key={dia}
+                type="button"
+                aria-pressed={folga}
+                disabled={saving}
+                onClick={() =>
+                  save(
+                    { dias_folga: next },
+                    next.length ? `Folga: ${textoFolga(next).replace("exceto ", "")}` : "Sem dia de folga",
+                  )
+                }
+                className={`min-h-11 rounded-full px-space-md font-label-md text-label-md font-bold capitalize ${
+                  folga
+                    ? "bg-error text-on-error"
+                    : "border border-outline-variant bg-surface-container-low text-on-surface"
+                } disabled:opacity-40`}
+              >
+                {DIAS_SEMANA[dia].slice(0, 3)}
+              </button>
+            );
+          })}
+        </div>
       </div>
       {horaIgual && (
         <p role="alert" className="font-body-sm text-body-sm font-semibold text-error">

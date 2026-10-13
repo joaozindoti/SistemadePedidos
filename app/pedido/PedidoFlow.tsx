@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { anonBrowserClient } from "./anonClient";
 import { ORDER_LIMITS, type Address, type CartItem, type Crust, type Flavor, type MenuItem } from "@/lib/types";
-import { formatHora } from "@/lib/loja";
+import { formatHora, textoFolga } from "@/lib/loja";
 import { fetchMenu, type MenuData, type PedidoInitialData } from "./menuData";
 import { useLojaStatus } from "./useLojaStatus";
 import MenuScreen from "./MenuScreen";
@@ -33,7 +33,7 @@ export default function PedidoFlow({ initialData }: { initialData: PedidoInitial
     initialData.menu ? "ready" : "loading",
   );
   const [menu, setMenu] = useState<MenuData>(
-    initialData.menu ?? { menuItems: [], flavors: [], crusts: [] },
+    initialData.menu ?? { menuItems: [], flavors: [], crusts: [], taxas: [] },
   );
 
   const reloadMenu = useCallback(async () => {
@@ -97,7 +97,9 @@ export default function PedidoFlow({ initialData }: { initialData: PedidoInitial
   const { status: loja, refresh: refreshLoja } = useLojaStatus(initialData.loja);
   const lojaFechada = loja?.aberta === false;
   const horarioTexto = loja?.config
-    ? `das ${formatHora(loja.config.abre_as)} às ${formatHora(loja.config.fecha_as)}`
+    ? [`das ${formatHora(loja.config.abre_as)} às ${formatHora(loja.config.fecha_as)}`, textoFolga(loja.config.dias_folga)]
+        .filter(Boolean)
+        .join(", ")
     : null;
 
   const [submitting, setSubmitting] = useState(false);
@@ -122,6 +124,12 @@ export default function PedidoFlow({ initialData }: { initialData: PedidoInitial
     () => cart.reduce((sum, item) => sum + item.unit_price * item.quantity, 0),
     [cart],
   );
+  // Frete da cidade escolhida (só na entrega). O servidor recalcula.
+  const deliveryFee = useMemo(() => {
+    if (orderType !== "entrega") return 0;
+    const taxa = menu.taxas.find((t) => t.cidade === address.city.trim());
+    return taxa ? Number(taxa.valor) : 0;
+  }, [orderType, address.city, menu.taxas]);
   // Linhas contam pro limite do pedido; unidades são o que o cliente vê.
   const cartUnits = useMemo(() => cart.reduce((sum, item) => sum + item.quantity, 0), [cart]);
 
@@ -416,7 +424,10 @@ export default function PedidoFlow({ initialData }: { initialData: PedidoInitial
           horarioTexto={horarioTexto}
           orderNotes={orderNotes}
           onOrderNotesChange={setOrderNotes}
-          total={total}
+          total={total + deliveryFee}
+          subtotal={total}
+          deliveryFee={deliveryFee}
+          cidades={menu.taxas}
           submitting={submitting}
           onBack={() => {
             setCartNotice(null);

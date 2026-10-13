@@ -16,6 +16,11 @@ export interface Flavor {
   active: boolean;
 }
 
+export interface TaxaEntrega {
+  cidade: string;
+  valor: number;
+}
+
 export interface Crust {
   id: string;
   name: string;

@@ -153,7 +153,28 @@ async function handle(req: Request): Promise<Response> {
   }
   const orderItems = priced.items;
 
-  const trocoInvalido = changeError(body.change_for, priced.totalCents);
+  // Frete: a tabela taxas_entrega é a fonte da verdade (o criar_pedido soma
+  // de novo); aqui só para recusar cidade sem entrega e conferir o troco.
+  let deliveryFeeCents = 0;
+  if (body.order_type === "entrega") {
+    const city = (body.address?.city ?? "").trim();
+    const { data: taxas, error: freteError } = await supabase
+      .from("taxas_entrega")
+      .select("cidade, valor")
+      .eq("ativo", true);
+    if (freteError || !taxas) {
+      console.error("Falha ao buscar frete:", freteError);
+      return jsonResponse({ error: "Falha ao calcular a entrega" }, 500);
+    }
+    const taxa = taxas.find((t) => t.cidade.toLowerCase() === city.toLowerCase());
+    if (!taxa) {
+      const cidades = taxas.map((t) => t.cidade).join(" e ");
+      return jsonResponse({ error: `Entregamos só em ${cidades}.`, code: "cidade_sem_entrega" }, 400);
+    }
+    deliveryFeeCents = Math.round(Number(taxa.valor) * 100);
+  }
+
+  const trocoInvalido = changeError(body.change_for, priced.totalCents + deliveryFeeCents);
   if (trocoInvalido) {
     return jsonResponse({ error: trocoInvalido }, 400);
   }

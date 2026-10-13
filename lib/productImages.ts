@@ -32,6 +32,10 @@ export function simpleItemImage(name: string, category: string): string | null {
   if (category !== "bebida") return null;
   const n = normalize(name);
   const size = n.includes("350") ? "lata" : n.includes("2 litro") || n.includes("2l") ? "2l" : "1l";
+  if (n.includes("agua")) return "/cardapio/bebidas/agua.webp";
+  if (n.includes("coca") && (n.includes("zero") || n.includes("sem acucar"))) {
+    return `/cardapio/bebidas/coca-zero-${size}.webp`;
+  }
   if (n.includes("coca")) return `/cardapio/bebidas/coca-${size}.webp`;
   if (n.includes("fanta") || n.includes("laranja")) return `/cardapio/bebidas/fanta-${size}.webp`;
   if (n.includes("guarana")) return `/cardapio/bebidas/guarana-${size}.webp`;
