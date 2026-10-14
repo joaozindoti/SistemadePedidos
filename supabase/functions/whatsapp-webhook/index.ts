@@ -175,8 +175,22 @@ Amanhã tem pizza quentinha te esperando! 🍕`,
     console.error("Falha ao registrar envio do link:", linkError);
     return new Response("ok", { status: 200 });
   }
-  // Saudação ou pedido de cardápio fura a janela de 3h.
-  const pediuCardapio = wantsMenu(messageText(body));
+  // Saudação ou pedido de cardápio fura a janela de 3h, mas no máximo uma vez
+  // a cada 10 min por telefone: mandar "oi" em sequência não pode fazer o
+  // número da loja disparar mensagem atrás de mensagem (risco de banimento).
+  // Update condicional = atômico; a linha já existe (a RPC acima a criou).
+  let pediuCardapio = false;
+  if (!deveMandarLink && wantsMenu(messageText(body))) {
+    const dezMinAtras = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+    const { data: liberado, error: bypassError } = await supabase
+      .from("whatsapp_envios_link")
+      .update({ enviado_em: new Date().toISOString() })
+      .eq("phone", normalizedPhone)
+      .lt("enviado_em", dezMinAtras)
+      .select("phone");
+    if (bypassError) console.error("Falha ao registrar reenvio do link:", bypassError);
+    pediuCardapio = !bypassError && (liberado?.length ?? 0) > 0;
+  }
   if (deveMandarLink || pediuCardapio) {
     const enviado = await sendText(phone, MENSAGEM_CARDAPIO);
     if (!enviado && deveMandarLink) {
