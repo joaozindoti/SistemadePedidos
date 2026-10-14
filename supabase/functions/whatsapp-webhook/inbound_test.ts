@@ -1,5 +1,5 @@
 import { assertEquals } from "jsr:@std/assert@1.0.13";
-import { parseInbound } from "./inbound.ts";
+import { messageText, parseInbound, wantsMenu } from "./inbound.ts";
 
 function msg(key: Record<string, unknown>, event = "messages.upsert") {
   return { event, instance: "loja", data: { key } };
@@ -38,4 +38,22 @@ Deno.test("conversa com LID usa o número de senderPn", () => {
 
 Deno.test("número fora do Brasil não recebe resposta automática", () => {
   assertEquals(parseInbound(msg({ remoteJid: "14155552671@s.whatsapp.net" })), null);
+});
+
+Deno.test("saudações e pedidos de cardápio recebem o link", () => {
+  for (const txt of ["Boa noite", "boa tarde!", "BOM DIA", "oi", "Oiii", "Olá", "opa", "e aí", "quero pedir uma pizza",
+    "Manda o cardápio", "qual o link?", "Vocês estão abertos?", "boa"]) {
+    assertEquals(wantsMenu(txt), true, txt);
+  }
+  for (const txt of ["", "obrigado", "ok", "valeu", "já paguei", "chegou aqui"]) {
+    assertEquals(wantsMenu(txt), false, txt);
+  }
+});
+
+Deno.test("texto vem de conversa, texto estendido ou legenda", () => {
+  assertEquals(messageText({ data: { message: { conversation: "boa noite" } } }), "boa noite");
+  assertEquals(messageText({ data: { message: { extendedTextMessage: { text: "oi" } } } }), "oi");
+  assertEquals(messageText({ data: { message: { imageMessage: { caption: "cardápio?" } } } }), "cardápio?");
+  assertEquals(messageText({ data: { message: { audioMessage: {} } } }), "");
+  assertEquals(messageText(null), "");
 });

@@ -49,3 +49,29 @@ export function parseInbound(body: unknown): InboundMessage | null {
   if (!phone) return null;
   return { replyTo, phone };
 }
+
+// Texto da mensagem (conversa simples, texto com link/citação ou legenda de
+// foto). Vazio quando é áudio, figurinha etc.
+export function messageText(body: unknown): string {
+  const m = (body as { data?: { message?: Record<string, unknown> } })?.data?.message;
+  if (!m || typeof m !== "object") return "";
+  const ext = m.extendedTextMessage as { text?: unknown } | undefined;
+  const img = m.imageMessage as { caption?: unknown } | undefined;
+  const raw = m.conversation ?? ext?.text ?? img?.caption ?? "";
+  return typeof raw === "string" ? raw : "";
+}
+
+function normalize(text: string): string {
+  return text.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+// Saudação ou pedido de cardápio: recebe o link sempre, mesmo dentro da
+// janela de 3h (quem volta dizendo "boa noite" quer pedir).
+const QUER_CARDAPIO =
+  /\b(oi+|ola+|opa|eae|e ai|eai|hey|hello|boa+|bo[am] (dia|tarde|noite)|blz|salve|cardapio|menu|link|site|pedido|pedir|peco|quero|encomendar|pizzas?|esfirras?|delivery|entrega|precos?|valor(es)?|sabores|abert[oa]s?|funcionando)\b/;
+
+export function wantsMenu(text: string): boolean {
+  const t = normalize(text);
+  if (!t) return false;
+  return QUER_CARDAPIO.test(t);
+}

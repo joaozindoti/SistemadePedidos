@@ -2,7 +2,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.116.0";
 import { phoneVariants } from "../_shared/phone.ts";
 import { safeEqual } from "../_shared/secret.ts";
-import { parseInbound } from "./inbound.ts";
+import { messageText, parseInbound, wantsMenu } from "./inbound.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -11,6 +11,19 @@ const EVOLUTION_API_KEY = Deno.env.get("EVOLUTION_API_KEY")!;
 const EVOLUTION_INSTANCE_NAME = Deno.env.get("EVOLUTION_INSTANCE_NAME")!;
 const WHATSAPP_WEBHOOK_SECRET = Deno.env.get("WHATSAPP_WEBHOOK_SECRET")!;
 const CARDAPIO_LINK = "https://sistemade-pedidos.vercel.app/pedido";
+
+const MENSAGEM_CARDAPIO = `🍕 Olá! Seja muito bem-vindo(a) à Sidney & Shirley Pizzaria Delivery! 
+
+Que bom ter você por aqui! 
+
+📋 Confira nosso cardápio digital, escolha sua pizza favorita e faça seu pedido de forma rápida e prática pelo link abaixo:
+
+👇 ACESSE NOSSO CARDÁPIO E PEÇA AGORA:
+👇👇👇👇
+🔗 ${CARDAPIO_LINK}
+
+
+Obrigado pela preferência!`;
 const ACTIVE_ORDER_STATUSES = ["pendente", "preparo", "pronto", "saiu_entrega"];
 const ACTIVE_ORDER_WINDOW_MS = 12 * 60 * 60 * 1000;
 const EVOLUTION_TIMEOUT_MS = 8000;
@@ -162,9 +175,11 @@ Amanhã tem pizza quentinha te esperando! 🍕`,
     console.error("Falha ao registrar envio do link:", linkError);
     return new Response("ok", { status: 200 });
   }
-  if (deveMandarLink) {
-    const enviado = await sendText(phone, `Oi! Monta seu pedido aqui: ${CARDAPIO_LINK}`);
-    if (!enviado) {
+  // Saudação ou pedido de cardápio fura a janela de 3h.
+  const pediuCardapio = wantsMenu(messageText(body));
+  if (deveMandarLink || pediuCardapio) {
+    const enviado = await sendText(phone, MENSAGEM_CARDAPIO);
+    if (!enviado && deveMandarLink) {
       // O envio já ficou registrado pela RPC: sem apagar, o cliente passaria
       // 3h sem receber o link por uma falha da Evolution.
       const { error } = await supabase.from("whatsapp_envios_link").delete().eq("phone", normalizedPhone);
