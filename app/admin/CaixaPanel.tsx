@@ -18,9 +18,30 @@ const PAGAMENTOS: { key: string; label: string }[] = [
   { key: "pix", label: "Pix" },
   { key: "cartao", label: "Cartão" },
 ];
+const STATUS_LABEL: Record<string, string> = {
+  pendente: "Aguardando",
+  confirmado: "Aceito",
+  preparo: "Em preparo",
+  pronto: "Pronto",
+  saiu_entrega: "Saiu p/ entrega",
+  finalizado: "Finalizado",
+  cancelado: "Cancelado",
+};
 const MESES = ["janeiro", "fevereiro", "março", "abril", "maio", "junho", "julho", "agosto", "setembro", "outubro", "novembro", "dezembro"];
 
 interface PedidoCaixa {
+  id: string;
+  order_number: number | null;
+  created_at: string;
+  order_type: string;
+  customer_name: string | null;
+  customer: { name: string | null; phone: string } | null;
+  items: {
+    quantity: number;
+    menu_item: { name: string } | null;
+    crust: { name: string } | null;
+    order_item_flavors: { flavor: { name: string } | null }[];
+  }[];
   total: number | string;
   delivery_fee: number | string | null;
   payment_method: string;
@@ -135,6 +156,8 @@ export default function CaixaPanel() {
   const [periodo, setPeriodo] = useState<Periodo>("dia");
   const [ref, setRef] = useState(hojeLoja);
   const [resumo, setResumo] = useState<Resumo | null>(null);
+  const [pedidos, setPedidos] = useState<PedidoCaixa[]>([]);
+  const [aberto, setAberto] = useState<string | null>(null);
   const [gastos, setGastos] = useState<Gasto[]>([]);
   const [fechadoEm, setFechadoEm] = useState<string | null>(null);
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
@@ -152,7 +175,12 @@ export default function CaixaPanel() {
     const [pedidosRes, gastosRes, fechRes] = await Promise.all([
       supabase
         .from("orders")
-        .select("total, delivery_fee, payment_method, status")
+        .select(
+          `id, order_number, created_at, order_type, customer_name, total, delivery_fee, payment_method, status,
+           customer:customers ( name, phone ),
+           items:order_items ( quantity, menu_item:menu_items ( name ), crust:crusts ( name ), order_item_flavors ( flavor:flavors ( name ) ) )`,
+        )
+        .order("created_at", { ascending: false })
         .gte("created_at", `${inicio}T00:00:00-03:00`)
         .lt("created_at", `${fim}T00:00:00-03:00`),
       supabase.from("gastos").select("id, dia, descricao, valor").gte("dia", inicio).lt("dia", fim).order("dia").order("created_at"),
@@ -167,7 +195,9 @@ export default function CaixaPanel() {
     }
     const lista = (gastosRes.data ?? []) as Gasto[];
     setGastos(lista);
-    setResumo(resumir((pedidosRes.data ?? []) as PedidoCaixa[], lista));
+    const listaPedidos = (pedidosRes.data ?? []) as unknown as PedidoCaixa[];
+    setPedidos(listaPedidos);
+    setResumo(resumir(listaPedidos, lista));
     setFechadoEm((fechRes.data as { fechado_em: string } | null)?.fechado_em ?? null);
     setLoadState("ready");
   }, [supabase, inicio, fim, periodo]);
@@ -346,6 +376,61 @@ export default function CaixaPanel() {
                     </button>
                   </div>
                 ))}
+              </div>
+            )}
+          </section>
+
+          <section className={BOX}>
+            <h2 className={TITULO}>Pedidos ({pedidos.length})</h2>
+            {pedidos.length === 0 ? (
+              <p className="py-space-xs font-body-sm text-body-sm text-on-surface-variant">Nenhum pedido neste período.</p>
+            ) : (
+              <div className="flex flex-col divide-y divide-surface-container-high">
+                {pedidos.map((p) => {
+                  const quando = new Date(p.created_at);
+                  const hora = quando.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "America/Fortaleza" });
+                  const dia = quando.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", timeZone: "America/Fortaleza" });
+                  const nome = p.customer_name || p.customer?.name || "Cliente";
+                  const fora = !FATURAVEIS.has(p.status);
+                  return (
+                    <div key={p.id} className="py-space-xs">
+                      <button
+                        type="button"
+                        onClick={() => setAberto(aberto === p.id ? null : p.id)}
+                        aria-expanded={aberto === p.id}
+                        className="flex min-h-11 w-full items-center justify-between gap-space-sm text-left"
+                      >
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate font-body-md text-body-md font-bold text-on-surface">
+                            #{p.order_number ?? "–"} · {nome}
+                          </span>
+                          <span className="block font-body-sm text-body-sm text-on-surface-variant">
+                            {periodo !== "dia" && `${dia} · `}{hora} · {STATUS_LABEL[p.status] ?? p.status} · {PAGAMENTOS.find((x) => x.key === p.payment_method)?.label ?? p.payment_method}
+                          </span>
+                        </span>
+                        <span className={`font-mono text-body-md ${fora ? "text-on-surface-variant line-through" : "text-primary"}`}>
+                          {formatBRL(Number(p.total))}
+                        </span>
+                      </button>
+                      {aberto === p.id && (
+                        <div className="mt-space-xs rounded-lg bg-surface-container-low p-space-sm font-body-sm text-body-sm text-on-surface">
+                          {p.items.map((it, i) => (
+                            <p key={i}>
+                              {it.quantity}× {it.menu_item?.name ?? "Item"}
+                              {it.order_item_flavors.length > 0 && ` · ${it.order_item_flavors.map((f) => f.flavor?.name).filter(Boolean).join(" / ")}`}
+                              {it.crust && ` · borda ${it.crust.name}`}
+                            </p>
+                          ))}
+                          <p className="mt-1 text-on-surface-variant">
+                            {p.order_type === "entrega" ? "Entrega" : "Retirada"}
+                            {Number(p.delivery_fee ?? 0) > 0 && ` (taxa ${formatBRL(Number(p.delivery_fee))})`}
+                            {p.customer?.phone && ` · ${p.customer.phone}`}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </section>
