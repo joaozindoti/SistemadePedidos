@@ -37,6 +37,8 @@ export function simpleItemImage(name: string, category: string): string | null {
     return `/cardapio/bebidas/coca-zero-${size}.webp`;
   }
   if (n.includes("coca")) return `/cardapio/bebidas/coca-${size}.webp`;
+  if (n.includes("sprite")) return `/cardapio/bebidas/sprite-zero-${size === "1l" ? "2l" : size}.webp`;
+  if (n.includes("jesus")) return `/cardapio/bebidas/jesus-${size}.webp`;
   if (n.includes("fanta") || n.includes("laranja")) return `/cardapio/bebidas/fanta-${size}.webp`;
   if (n.includes("guarana")) return `/cardapio/bebidas/guarana-${size}.webp`;
   return null;
