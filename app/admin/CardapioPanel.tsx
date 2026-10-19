@@ -160,6 +160,11 @@ function EditableRow({
   active,
   badge,
   maxFlavors,
+  image,
+  onUpload,
+  onRemoveImage,
+  especial,
+  onToggleEspecial,
   onSave,
   onToggleActive,
 }: {
@@ -170,6 +175,13 @@ function EditableRow({
   badge?: string;
   // Só tamanho de pizza passa (mesmo null); undefined esconde o campo.
   maxFlavors?: number | null;
+  // Foto: só aparece o botão quando onUpload vem.
+  image?: string | null;
+  onUpload?: (file: File) => Promise<void>;
+  onRemoveImage?: () => void;
+  // Tamanho de pizza: cobra ou não o adicional dos sabores especiais.
+  especial?: boolean;
+  onToggleEspecial?: () => void;
   onSave: (name: string, price: number, maxFlavors: number | null) => Promise<boolean>;
   onToggleActive: () => void;
 }) {
@@ -179,6 +191,22 @@ function EditableRow({
   const [priceInput, setPriceInput] = useState(toInput(price));
   const [maxFlavorsInput, setMaxFlavorsInput] = useState(maxFlavors != null ? String(maxFlavors) : "");
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  async function pickFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !onUpload) return;
+    setUploading(true);
+    try {
+      await onUpload(file);
+    } catch (err) {
+      console.log("Falha ao enviar foto:", err);
+    } finally {
+      setUploading(false);
+    }
+  }
 
   const parsedPrice = parseMoney(priceInput);
   const parsedMaxFlavors = parseMaxFlavors(maxFlavorsInput);
@@ -223,6 +251,15 @@ function EditableRow({
           />
         </div>
         {withMaxFlavors && <MaxFlavorsSelect value={maxFlavorsInput} onChange={setMaxFlavorsInput} />}
+        {image && onRemoveImage && (
+          <button
+            type="button"
+            onClick={onRemoveImage}
+            className="self-start font-label-md text-label-md uppercase text-error underline underline-offset-4"
+          >
+            Remover foto (volta a padrão)
+          </button>
+        )}
         <div className="flex items-center justify-end gap-space-xs">
           <button
             type="button"
@@ -247,6 +284,31 @@ function EditableRow({
 
   return (
     <div className="flex items-center gap-space-sm py-space-sm">
+      {onUpload && (
+        <>
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            disabled={uploading}
+            aria-label={image ? `Trocar foto de ${name}` : `Adicionar foto em ${name}`}
+            title={image ? "Trocar foto" : "Adicionar foto"}
+            className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-dashed border-outline-variant bg-surface-container-low text-on-surface-variant"
+          >
+            {image ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={image} alt="" className="h-full w-full object-cover" />
+            ) : (
+              <Icon name="add_a_photo" className="text-[20px]" />
+            )}
+            {uploading && (
+              <span className="absolute inset-0 flex items-center justify-center bg-black/60 text-[10px] font-bold text-white">
+                …
+              </span>
+            )}
+          </button>
+          <input ref={fileRef} type="file" accept="image/*" hidden onChange={pickFile} />
+        </>
+      )}
       <div className={`flex min-w-0 flex-1 flex-col ${active ? "" : "opacity-50"}`}>
         <span className="flex items-center gap-space-xs">
           <span className="truncate font-body-md text-body-md font-semibold text-on-surface">{name}</span>
@@ -269,6 +331,16 @@ function EditableRow({
               <span className="font-semibold text-error"> · defina o máx. de sabores</span>
             ))}
         </span>
+        {onToggleEspecial && (
+          <button
+            type="button"
+            onClick={onToggleEspecial}
+            aria-pressed={especial}
+            className="mt-1 self-start rounded-full border border-outline-variant px-space-sm py-0.5 font-label-sm text-label-sm uppercase text-on-surface-variant"
+          >
+            {especial ? "Cobra sabor especial" : "Sem preço especial"}
+          </button>
+        )}
       </div>
       <button
         type="button"
@@ -629,6 +701,11 @@ function HorarioCard({ onToast }: { onToast: (kind: "ok" | "erro", text: string)
 
 // ───────────── painel ─────────────
 
+// Nome único por envio: o CDN guarda a foto antiga pelo caminho.
+function photoPath(folder: string, id: string): string {
+  return `${folder}/${id}-${Date.now()}.webp`;
+}
+
 export default function CardapioPanel() {
   const supabase = createClient();
   const { toast, show } = useToast();
@@ -705,6 +782,69 @@ export default function CardapioPanel() {
     return true;
   }
 
+  // Reduz a foto no navegador (até 800 px, WebP) antes de mandar: foto de
+  // celular tem 4 MB e o cardápio carrega dezenas delas.
+  async function shrink(file: File): Promise<Blob> {
+    const bitmap = await createImageBitmap(file);
+    const k = Math.min(1, 800 / Math.max(bitmap.width, bitmap.height));
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(bitmap.width * k);
+    canvas.height = Math.round(bitmap.height * k);
+    canvas.getContext("2d")!.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+    return new Promise((ok, fail) =>
+      canvas.toBlob((b) => (b ? ok(b) : fail(new Error("sem imagem"))), "image/webp", 0.85),
+    );
+  }
+
+  const STORAGE_PREFIX = "/storage/v1/object/public/cardapio/";
+
+  // Apaga do armazenamento só foto que o próprio painel enviou.
+  async function dropStored(url: string | null | undefined) {
+    if (url?.includes(STORAGE_PREFIX)) await supabase.storage.from("cardapio").remove([url.split(STORAGE_PREFIX)[1]]);
+  }
+
+  async function uploadImage<T extends { id: string; image_url?: string | null }>(
+    table: "menu_items" | "flavors",
+    rows: T[],
+    setRows: React.Dispatch<React.SetStateAction<T[]>>,
+    row: T,
+    folder: string,
+    file: File,
+  ) {
+    let blob: Blob;
+    try {
+      blob = await shrink(file);
+    } catch {
+      show("erro", "Não deu pra ler essa imagem. Tente outra (JPG ou PNG).");
+      return;
+    }
+    const path = photoPath(folder, row.id);
+    const { error } = await supabase.storage.from("cardapio").upload(path, blob, { contentType: "image/webp" });
+    if (error) {
+      console.log("Falha ao enviar foto:", error);
+      show("erro", "A foto não subiu. Confira a internet e tente de novo.");
+      return;
+    }
+    const url = supabase.storage.from("cardapio").getPublicUrl(path).data.publicUrl;
+    const old = row.image_url;
+    const ok = await patchRow(table, rows, setRows, row.id, { image_url: url } as Partial<T>, "Foto salva ✓");
+    if (ok) await dropStored(old);
+    else await dropStored(url);
+  }
+
+  async function removeImage<T extends { id: string; image_url?: string | null }>(
+    table: "menu_items" | "flavors",
+    rows: T[],
+    setRows: React.Dispatch<React.SetStateAction<T[]>>,
+    row: T,
+  ) {
+    const old = row.image_url;
+    const ok = await patchRow(table, rows, setRows, row.id, { image_url: null } as Partial<T>, "Foto removida");
+    if (ok) await dropStored(old);
+  }
+
+  const FOLDER: Record<string, string> = { bebida: "bebidas", esfirra: "esfirras", pizza: "pizzas" };
+
   const menuRow = (m: MenuItem) => (
     <EditableRow
       key={m.id}
@@ -712,6 +852,27 @@ export default function CardapioPanel() {
       price={Number(m.base_price)}
       active={m.active}
       maxFlavors={m.category === "pizza" ? m.max_flavors : undefined}
+      image={m.image_url}
+      onUpload={
+        m.category === "pizza"
+          ? undefined
+          : (file) => uploadImage("menu_items", menuItems, setMenuItems, m, FOLDER[m.category], file)
+      }
+      onRemoveImage={() => removeImage("menu_items", menuItems, setMenuItems, m)}
+      especial={m.cobra_especial !== false}
+      onToggleEspecial={
+        m.category === "pizza"
+          ? () =>
+              patchRow(
+                "menu_items",
+                menuItems,
+                setMenuItems,
+                m.id,
+                { cobra_especial: m.cobra_especial === false },
+                m.cobra_especial === false ? `${m.name} cobra sabor especial` : `${m.name} sem preço especial`,
+              )
+          : undefined
+      }
       onSave={(name, price, maxFlavors) =>
         patchRow(
           "menu_items",
@@ -814,6 +975,9 @@ export default function CardapioPanel() {
               priceLabel="Adicional"
               active={f.active}
               badge={f.flavor_type === "doce" ? "Doce" : undefined}
+              image={f.image_url}
+              onUpload={(file) => uploadImage("flavors", flavors, setFlavors, f, "sabores", file)}
+              onRemoveImage={() => removeImage("flavors", flavors, setFlavors, f)}
               onSave={(name, price) => patchRow("flavors", flavors, setFlavors, f.id, { name, extra_price: price }, "Salvo ✓")}
               onToggleActive={() =>
                 patchRow(

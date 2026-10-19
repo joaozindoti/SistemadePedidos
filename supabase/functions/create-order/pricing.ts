@@ -10,6 +10,8 @@ export interface MenuItemRow {
   base_price: number | string;
   active: boolean;
   max_flavors: number | null;
+  // false = tamanho sem preço especial (Brotinho). Ausente vale como true.
+  cobra_especial?: boolean;
 }
 
 export interface ExtraRow {
@@ -119,7 +121,9 @@ export function priceOrder(
     // Preço especial só quando TODOS os sabores são especiais (com adicional);
     // misturou especial com sabor comum, sai no preço normal do tamanho.
     const extras = item.flavor_ids.map((id) => toCents(flavors.find((f) => f.id === id)!.extra_price));
-    const maxFlavorExtraCents = extras.length > 0 && extras.every((c) => c > 0) ? Math.max(...extras) : 0;
+    // Tamanho com cobra_especial = false (Brotinho) nunca cobra o especial.
+    const maxFlavorExtraCents =
+      menuItem.cobra_especial !== false && extras.length > 0 && extras.every((c) => c > 0) ? Math.max(...extras) : 0;
     unitCents += maxFlavorExtraCents;
 
     if (item.crust_id) {

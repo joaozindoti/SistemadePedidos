@@ -29,6 +29,13 @@ Deno.test("pizza de um sabor só cobra o adicional do sabor especial", () => {
   assertEquals(r.items[0].unit_price, 65.5);
 });
 
+Deno.test("tamanho sem preço especial (Brotinho) cobra só o base", () => {
+  const brotinho = { ...menu.find((m) => m.id === "pizza-g")!, cobra_especial: false };
+  const r = priceOrder([item("pizza-g", { flavor_ids: ["camarao"] })], [brotinho, ...menu.filter((m) => m.id !== "pizza-g")], flavors, crusts);
+  if (!r.ok) throw new Error(r.error);
+  assertEquals(r.items[0].unit_price, 50);
+});
+
 Deno.test("todos os sabores especiais: cobra o adicional", () => {
   const r = priceOrder([item("pizza-g", { flavor_ids: ["camarao", "camarao2"] })], menu, [
     ...flavors,

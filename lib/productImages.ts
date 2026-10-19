@@ -18,7 +18,9 @@ function normalize(name: string): string {
     .trim();
 }
 
-export function flavorImage(name: string): string | null {
+// Foto enviada pelo painel (image_url) vale sobre a padrão.
+export function flavorImage(name: string, uploaded?: string | null): string | null {
+  if (uploaded) return uploaded;
   return FLAVOR_IMAGES[normalize(name)] ?? null;
 }
 
@@ -27,7 +29,8 @@ export const ESFIRRA_IMAGE = "/cardapio/esfirra.webp";
 
 // Bebidas usam a foto do produto (enviada pela pizzaria), uma por tamanho:
 // lata 350ml, garrafa 1L e garrafa 2L.
-export function simpleItemImage(name: string, category: string): string | null {
+export function simpleItemImage(name: string, category: string, uploaded?: string | null): string | null {
+  if (uploaded) return uploaded;
   if (category === "esfirra") return ESFIRRA_IMAGE;
   if (category !== "bebida") return null;
   const n = normalize(name);

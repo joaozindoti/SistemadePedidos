@@ -107,7 +107,7 @@ async function handle(req: Request): Promise<Response> {
   const menuItemIds = [...new Set(body.items.map((i) => i.menu_item_id))];
   const { data: menuItems, error: menuError } = await supabase
     .from("menu_items")
-    .select("id, name, category, base_price, active, max_flavors")
+    .select("id, name, category, base_price, active, max_flavors, cobra_especial")
     .in("id", menuItemIds);
 
   if (menuError || !menuItems) {

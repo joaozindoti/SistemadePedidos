@@ -6,6 +6,10 @@ export interface MenuItem {
   base_price: number;
   active: boolean;
   max_flavors: number | null;
+  // false = tamanho sem preço especial (Brotinho): qualquer sabor no preço base.
+  cobra_especial?: boolean;
+  // Foto enviada pelo painel; nulo = foto padrão.
+  image_url?: string | null;
 }
 
 export interface Flavor {
@@ -14,6 +18,7 @@ export interface Flavor {
   flavor_type: "salgada" | "doce";
   extra_price: number;
   active: boolean;
+  image_url?: string | null;
 }
 
 export interface TaxaEntrega {

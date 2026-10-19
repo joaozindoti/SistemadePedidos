@@ -183,7 +183,7 @@ export default function MenuScreen({
   // Sabores com foto primeiro na vitrine; os sem foto vêm depois com ícone.
   function orderedFlavors(flavors: Flavor[]): Flavor[] {
     return [...flavors].sort(
-      (a, b) => Number(Boolean(flavorImage(b.name))) - Number(Boolean(flavorImage(a.name))),
+      (a, b) => Number(Boolean(flavorImage(b.name, b.image_url))) - Number(Boolean(flavorImage(a.name, a.image_url))),
     );
   }
 
@@ -384,7 +384,7 @@ export default function MenuScreen({
                   </span>
                   <div className="-mx-margin flex snap-x gap-space-sm overflow-x-auto px-margin pb-space-xs">
                     {orderedFlavors(section.flavors).map((flavor) => {
-                      const img = flavorImage(flavor.name);
+                      const img = flavorImage(flavor.name, flavor.image_url);
                       return (
                         <button
                           key={flavor.id}
@@ -428,7 +428,7 @@ export default function MenuScreen({
                     className="flex w-full items-center gap-space-md rounded-2xl border border-outline-variant/60 bg-surface-container-low p-space-sm text-left transition-colors hover:border-outline"
                   >
                     <ProductThumb
-                      src={simpleItemImage(item.name, item.category)}
+                      src={simpleItemImage(item.name, item.category, item.image_url)}
                       icon={section.icon}
                       alt={item.name}
                     />

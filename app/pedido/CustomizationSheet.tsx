@@ -42,7 +42,7 @@ export type PizzaUnit = { size: MenuItem; flavors: Flavor[]; crust: Crust | null
 function pizzaUnitPrice(size: MenuItem | null, flavors: Flavor[], crust: Crust | null): number {
   return (
     (size ? Number(size.base_price) : 0) +
-    (flavors.length > 0 && flavors.every((f) => Number(f.extra_price) > 0)
+    (size?.cobra_especial !== false && flavors.length > 0 && flavors.every((f) => Number(f.extra_price) > 0)
       ? Math.max(...flavors.map((f) => Number(f.extra_price)))
       : 0) +
     (crust ? Number(crust.extra_price) : 0)
@@ -316,7 +316,7 @@ export default function CustomizationSheet({
       : "";
   const description = target.kind === "simple" ? target.item.description : null;
   const headerImage =
-    target.kind === "simple" ? simpleItemImage(target.item.name, target.item.category) : null;
+    target.kind === "simple" ? simpleItemImage(target.item.name, target.item.category, target.item.image_url) : null;
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col justify-end bg-black/60 backdrop-blur-sm">
@@ -499,7 +499,7 @@ export default function CustomizationSheet({
                           {groupLabel}
                         </span>
                         {groupFlavors.map((flavor) => {
-                          const img = flavorImage(flavor.name);
+                          const img = flavorImage(flavor.name, flavor.image_url);
                           const selected = selectedFlavorIds.includes(flavor.id);
                           const disabled = !selectedSize || (!selected && limitReached);
                           return (
@@ -545,7 +545,7 @@ export default function CustomizationSheet({
                                   )}
                                 </span>
                               </div>
-                              {Number(flavor.extra_price) > 0 && (
+                              {Number(flavor.extra_price) > 0 && selectedSize?.cobra_especial !== false && (
                                 <span
                                   className={`font-headline-md text-headline-md ${
                                     selected ? "font-bold text-primary" : "text-on-surface-variant"

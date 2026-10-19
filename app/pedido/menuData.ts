@@ -24,12 +24,12 @@ export async function fetchMenu(supabase: SupabaseClient): Promise<MenuData | nu
   const [menuRes, flavorsRes, crustsRes, taxasRes] = await Promise.all([
     supabase
       .from("menu_items")
-      .select("id, name, description, category, base_price, active, max_flavors")
+      .select("id, name, description, category, base_price, active, max_flavors, cobra_especial, image_url")
       .eq("active", true)
       .order("base_price", { ascending: true }),
     supabase
       .from("flavors")
-      .select("id, name, flavor_type, extra_price, active")
+      .select("id, name, flavor_type, extra_price, active, image_url")
       .eq("active", true)
       .order("name", { ascending: true }),
     supabase

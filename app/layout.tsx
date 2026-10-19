@@ -30,7 +30,7 @@ const atkinsonMono = Atkinson_Hyperlegible_Mono({
 // da fonte inteira (~3 MB). Ícone novo em <Icon name="..."> precisa entrar
 // nesta lista, em ordem alfabética, senão aparece como texto.
 const ICON_NAMES = [
-  "add", "alarm", "arrow_back", "arrow_forward", "bakery_dining", "bar_chart", "bedtime",
+  "add", "add_a_photo", "alarm", "arrow_back", "arrow_forward", "bakery_dining", "bar_chart", "bedtime",
   "cake", "chat", "check", "check_circle", "chevron_left", "chevron_right", "close", "content_copy",
   "dark_mode", "delete", "donut_large", "eco", "edit", "error", "fullscreen", "grid_view",
   "hourglass_top", "install_mobile", "ios_share", "light_mode", "local_drink",

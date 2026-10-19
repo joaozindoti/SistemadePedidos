@@ -149,7 +149,8 @@ export default function PedidoFlow({ initialData }: { initialData: PedidoInitial
         const flavorIds = unit.flavors.map((f) => f.id);
         const notes = unit.notes.trim();
         // Especial só quando todos os sabores são especiais (regra do create-order).
-        const allSpecial = unit.flavors.length > 0 && unit.flavors.every((f) => Number(f.extra_price) > 0);
+        const allSpecial =
+          unit.size.cobra_especial !== false && unit.flavors.length > 0 && unit.flavors.every((f) => Number(f.extra_price) > 0);
         const maxExtra = allSpecial ? Math.max(...unit.flavors.map((f) => Number(f.extra_price))) : 0;
         const crustExtra = unit.crust ? Number(unit.crust.extra_price) : 0;
         const key = pizzaUnitKey(unit.size.id, flavorIds, unit.crust?.id, notes);
