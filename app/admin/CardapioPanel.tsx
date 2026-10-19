@@ -43,17 +43,21 @@ function AvailabilitySwitch({
   active,
   onToggle,
   label,
+  onText = "Disponível",
+  offText = "Esgotado",
 }: {
   active: boolean;
   onToggle: () => void;
   label: string;
+  onText?: string;
+  offText?: string;
 }) {
   return (
     <button
       type="button"
       role="switch"
       aria-checked={active}
-      aria-label={`${label}: ${active ? "disponível" : "esgotado"}`}
+      aria-label={`${label}: ${(active ? onText : offText).toLowerCase()}`}
       onClick={onToggle}
       className="flex shrink-0 items-center gap-space-xs"
     >
@@ -73,7 +77,7 @@ function AvailabilitySwitch({
           active ? "text-on-surface" : "text-error"
         }`}
       >
-        {active ? "Disponível" : "Esgotado"}
+        {active ? onText : offText}
       </span>
     </button>
   );
@@ -533,7 +537,7 @@ function HorarioCard({ onToast }: { onToast: (kind: "ok" | "erro", text: string)
   }, [load]);
 
   async function save(
-    patch: { abre_as?: string; fecha_as?: string; modo?: ModoLoja; dias_folga?: number[] },
+    patch: { abre_as?: string; fecha_as?: string; modo?: ModoLoja; dias_folga?: number[]; delivery_ativo?: boolean },
     okText: string,
   ) {
     setSaving(true);
@@ -691,6 +695,24 @@ function HorarioCard({ onToast }: { onToast: (kind: "ok" | "erro", text: string)
           A abertura e o fechamento não podem ser no mesmo horário.
         </p>
       )}
+      <div className="flex items-center justify-between gap-space-sm rounded-lg bg-surface-container-low p-space-sm">
+        <span className="flex items-center gap-space-xs font-body-md text-body-md text-on-surface">
+          <Icon name="two_wheeler" className="text-[20px] text-primary" />
+          {status.config?.delivery_ativo === false ? "Delivery indisponível (só retirada)" : "Delivery disponível"}
+        </span>
+        <AvailabilitySwitch
+          active={status.config?.delivery_ativo !== false}
+          label="Delivery"
+          onText="Ligado"
+          offText="Desligado"
+          onToggle={() =>
+            save(
+              { delivery_ativo: status.config?.delivery_ativo === false },
+              status.config?.delivery_ativo === false ? "Delivery ligado" : "Delivery desligado: só retirada",
+            )
+          }
+        />
+      </div>
       <p className="font-body-sm text-body-sm text-on-surface-variant">
         Fora do horário o cardápio não aceita pedidos e o WhatsApp responde uma vez avisando que
         estamos fechados.

@@ -62,6 +62,7 @@ export default function CheckoutScreen({
   onCustomerPhoneChange,
   orderType,
   onOrderTypeChange,
+  deliveryAtivo,
   address,
   onAddressChange,
   paymentMethod,
@@ -87,6 +88,7 @@ export default function CheckoutScreen({
   onCustomerNameChange: (value: string) => void;
   customerPhone: string;
   onCustomerPhoneChange: (value: string) => void;
+  deliveryAtivo: boolean;
   orderType: "entrega" | "retirada" | null;
   onOrderTypeChange: (type: "entrega" | "retirada") => void;
   address: Address;
@@ -340,12 +342,19 @@ export default function CheckoutScreen({
                 type="button"
                 onClick={() => onOrderTypeChange(type)}
                 aria-pressed={orderType === type}
-                className={`flex-1 py-space-sm ${choiceClass(orderType === type)}`}
+                disabled={type === "entrega" && !deliveryAtivo}
+                className={`flex-1 py-space-sm ${choiceClass(orderType === type)} disabled:opacity-40`}
               >
                 {type === "entrega" ? "Entrega" : "Retirada"}
               </button>
             ))}
           </div>
+          {!deliveryAtivo && (
+            <p className="mt-space-xs flex items-center gap-space-xs font-body-sm text-body-sm text-on-surface-variant">
+              <Icon name="two_wheeler" className="text-[18px] text-primary" />
+              Delivery indisponível no momento, só retirada.
+            </p>
+          )}
         </section>
 
         {orderType === "entrega" && (

@@ -104,6 +104,17 @@ async function handle(req: Request): Promise<Response> {
     );
   }
 
+  // Delivery desligado no painel: só retirada.
+  if (body.order_type === "entrega") {
+    const { data: cfg } = await supabase.from("loja_config").select("delivery_ativo").eq("id", 1).maybeSingle();
+    if (cfg?.delivery_ativo === false) {
+      return jsonResponse(
+        { error: "O delivery está indisponível no momento. Escolha Retirada.", code: "delivery_indisponivel" },
+        409,
+      );
+    }
+  }
+
   const menuItemIds = [...new Set(body.items.map((i) => i.menu_item_id))];
   const { data: menuItems, error: menuError } = await supabase
     .from("menu_items")

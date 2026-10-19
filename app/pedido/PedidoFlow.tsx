@@ -96,6 +96,7 @@ export default function PedidoFlow({ initialData }: { initialData: PedidoInitial
 
   const { status: loja, refresh: refreshLoja } = useLojaStatus(initialData.loja);
   const lojaFechada = loja?.aberta === false;
+  const deliveryAtivo = loja?.config?.delivery_ativo !== false;
   const horarioTexto = loja?.config
     ? [`das ${formatHora(loja.config.abre_as)} às ${formatHora(loja.config.fecha_as)}`, textoFolga(loja.config.dias_folga)]
         .filter(Boolean)
@@ -415,7 +416,8 @@ export default function PedidoFlow({ initialData }: { initialData: PedidoInitial
           onCustomerNameChange={setCustomerName}
           customerPhone={customerPhone}
           onCustomerPhoneChange={setCustomerPhone}
-          orderType={orderType}
+          deliveryAtivo={deliveryAtivo}
+          orderType={deliveryAtivo ? orderType : orderType === "entrega" ? null : orderType}
           onOrderTypeChange={setOrderType}
           address={address}
           onAddressChange={(patch) => setAddress((current) => ({ ...current, ...patch }))}

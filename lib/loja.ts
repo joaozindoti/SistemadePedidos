@@ -13,6 +13,8 @@ export interface LojaConfig {
   modo: ModoLoja;
   // Dias sem abrir no modo automático. ISO: 1 = segunda … 7 = domingo.
   dias_folga?: number[];
+  // false = só retirada.
+  delivery_ativo?: boolean;
 }
 
 export interface LojaStatus {
@@ -39,7 +41,7 @@ export function textoFolga(dias: number[] | undefined): string {
 export async function fetchLojaStatus(supabase: SupabaseClient): Promise<LojaStatus | null> {
   const [abertaRes, configRes] = await Promise.all([
     supabase.rpc("loja_aberta"),
-    supabase.from("loja_config").select("abre_as, fecha_as, modo, dias_folga").eq("id", 1).maybeSingle(),
+    supabase.from("loja_config").select("abre_as, fecha_as, modo, dias_folga, delivery_ativo").eq("id", 1).maybeSingle(),
   ]);
   if (abertaRes.error) return null;
   return {
