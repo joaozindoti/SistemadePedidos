@@ -19,7 +19,7 @@ interface StatusPayload {
   order_number?: number | null;
   customer_name?: string | null;
   status: string;
-  order_type: "entrega" | "retirada";
+  order_type: "entrega" | "retirada" | "local";
   estimated_minutes: number | null;
   delivery_estimated_minutes: number | null;
   customer_id: string;
@@ -58,7 +58,19 @@ function formatOrderItemsList(items: OrderItemRow[]): string {
     .join("\n");
 }
 
-function paymentLine(paymentMethod: string, total: number, changeFor: number | null): string {
+// "na entrega ou na retirada" não serve pra quem come na pizzaria.
+function ondePaga(orderType: string): string {
+  if (orderType === "entrega") return "na entrega";
+  if (orderType === "local") return "aqui na pizzaria";
+  return "na retirada";
+}
+
+function paymentLine(
+  paymentMethod: string,
+  total: number,
+  changeFor: number | null,
+  orderType: string,
+): string {
   if (paymentMethod === "pix") {
     if (!PIX_KEY) {
       // Sem chave configurada não dá pra pedir comprovante de nada: a loja
@@ -69,13 +81,13 @@ function paymentLine(paymentMethod: string, total: number, changeFor: number | n
     return `Pagamento via Pix: chave ${PIX_KEY_LABEL} (envie o comprovante aqui no WhatsApp)`;
   }
   if (paymentMethod === "cartao") {
-    return "Pagamento no cartão, na entrega ou na retirada.";
+    return `Pagamento no cartão, ${ondePaga(orderType)}.`;
   }
   if (paymentMethod === "dinheiro") {
     if (changeFor && changeFor > total) {
       return `Pagamento em dinheiro. Troco para ${formatBRL(changeFor)} (levamos ${formatBRL(changeFor - total)} de troco).`;
     }
-    return "Pagamento em dinheiro, na entrega ou na retirada.";
+    return `Pagamento em dinheiro, ${ondePaga(orderType)}.`;
   }
   return "";
 }
@@ -129,6 +141,7 @@ async function buildMessage(
       order.payment_method as string,
       Number(order.total),
       order.change_for == null ? null : Number(order.change_for),
+      payload.order_type,
     );
 
     const lines = [`${oi}${pedido} foi confirmado e está sendo preparado!`];
@@ -147,6 +160,17 @@ async function buildMessage(
         ? ` Chega em aproximadamente ${payload.delivery_estimated_minutes} min.`
         : "";
       return `${oi}${pedido} está pronto e já vai sair para entrega!${tempo}`;
+    }
+    if (payload.order_type === "local") {
+      // A mesa não vem no payload do trigger: busca no pedido.
+      const { data: mesa } = await supabase
+        .from("orders")
+        .select("table_number")
+        .eq("id", payload.order_id)
+        .maybeSingle();
+      return mesa?.table_number
+        ? `${oi}${pedido} está pronto! Já estamos levando até a sua mesa (Mesa ${mesa.table_number}). 🍕`
+        : `${oi}${pedido} está pronto! Te esperamos aqui na pizzaria. 🍕`;
     }
     return `${oi}${pedido} está pronto! Já pode vir buscar.`;
   }

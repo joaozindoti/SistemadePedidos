@@ -2,7 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { anonBrowserClient } from "./anonClient";
-import { ORDER_LIMITS, type Address, type CartItem, type Crust, type Flavor, type MenuItem } from "@/lib/types";
+import {
+  ORDER_LIMITS,
+  type Address,
+  type CartItem,
+  type Crust,
+  type Flavor,
+  type MenuItem,
+  type OrderType,
+} from "@/lib/types";
 import { formatHora, textoFolga } from "@/lib/loja";
 import { fetchMenu, type MenuData, type PedidoInitialData } from "./menuData";
 import { useLojaStatus } from "./useLojaStatus";
@@ -28,7 +36,14 @@ function joinNames(names: string[]): string {
   return `${names.slice(0, -1).join(", ")} e ${names[names.length - 1]}`;
 }
 
-export default function PedidoFlow({ initialData }: { initialData: PedidoInitialData }) {
+export default function PedidoFlow({
+  initialData,
+  mesaInicial = null,
+}: {
+  initialData: PedidoInitialData;
+  // Veio pelo QR Code da mesa: já começa como "comer aqui" nessa mesa.
+  mesaInicial?: string | null;
+}) {
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">(
     initialData.menu ? "ready" : "loading",
   );
@@ -76,9 +91,8 @@ export default function PedidoFlow({ initialData }: { initialData: PedidoInitial
 
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
-  const [orderType, setOrderType] = useState<"entrega" | "retirada" | null>(
-    null,
-  );
+  const [orderType, setOrderType] = useState<OrderType | null>(mesaInicial ? "local" : null);
+  const [tableNumber, setTableNumber] = useState(mesaInicial ?? "");
   const [address, setAddress] = useState<Address>({
     street: "",
     number: "",
@@ -279,6 +293,7 @@ export default function PedidoFlow({ initialData }: { initialData: PedidoInitial
               city: address.city.trim(),
             }
           : undefined,
+      table_number: orderType === "local" ? tableNumber.trim() || undefined : undefined,
       payment_method: paymentMethod,
       change_for:
         paymentMethod === "dinheiro" && changeFor && changeFor !== "sem"
@@ -350,7 +365,9 @@ export default function PedidoFlow({ initialData }: { initialData: PedidoInitial
     setCart([]);
     setCustomerName("");
     setCustomerPhone("");
-    setOrderType(null);
+    // Na mesa, o próximo pedido costuma ser da mesma mesa.
+    setOrderType(mesaInicial ? "local" : null);
+    setTableNumber(mesaInicial ?? "");
     setAddress({ street: "", number: "", complement: "", neighborhood: "", city: "" });
     setPaymentMethod(null);
     setOrderNotes("");
@@ -419,6 +436,9 @@ export default function PedidoFlow({ initialData }: { initialData: PedidoInitial
           deliveryAtivo={deliveryAtivo}
           orderType={deliveryAtivo ? orderType : orderType === "entrega" ? null : orderType}
           onOrderTypeChange={setOrderType}
+          tableNumber={tableNumber}
+          onTableNumberChange={setTableNumber}
+          mesaDoQr={mesaInicial}
           address={address}
           onAddressChange={(patch) => setAddress((current) => ({ ...current, ...patch }))}
           paymentMethod={paymentMethod}

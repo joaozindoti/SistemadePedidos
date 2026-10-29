@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/browserClient";
 import { Icon } from "@/lib/ui";
+import { ORDER_TYPE_ICON, orderTypeText } from "@/lib/types";
 import { playNewOrderBeep } from "@/lib/sound";
 import SoundBanner from "./SoundBanner";
 import {
@@ -21,7 +22,7 @@ import {
 } from "./comanda";
 
 const ORDER_SELECT = `
-  id, order_number, order_type, notes, created_at, accepted_at, estimated_minutes, customer_name,
+  id, order_number, order_type, table_number, notes, created_at, accepted_at, estimated_minutes, customer_name,
   customer:customers ( name ),
   items:order_items (
     id, quantity, item_notes,
@@ -399,14 +400,13 @@ export default function KitchenDisplay() {
                       className={`flex items-center gap-space-xs rounded-md px-space-sm py-1 text-lg font-extrabold uppercase tracking-wide ${
                         order.order_type === "entrega"
                           ? "bg-primary text-on-primary"
-                          : "border-2 border-on-surface text-on-surface"
+                          : order.order_type === "local"
+                            ? "bg-inverse-surface text-inverse-on-surface"
+                            : "border-2 border-on-surface text-on-surface"
                       }`}
                     >
-                      <Icon
-                        name={order.order_type === "entrega" ? "two_wheeler" : "storefront"}
-                        className="text-[22px]"
-                      />
-                      {order.order_type === "entrega" ? "Entrega" : "Retirada"}
+                      <Icon name={ORDER_TYPE_ICON[order.order_type] ?? "storefront"} className="text-[22px]" />
+                      {orderTypeText(order.order_type, order.table_number)}
                     </span>
                     <span className="text-lg text-on-surface-variant">
                       Aceito às <strong className="text-on-surface">{clockTime(startedAt(order))}</strong>

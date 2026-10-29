@@ -229,6 +229,7 @@ async function handle(req: Request): Promise<Response> {
       address_complement: address?.complement ?? null,
       address_neighborhood: address?.neighborhood ?? null,
       address_city: address?.city ?? null,
+      table_number: body.table_number,
       items: orderItems,
     },
   });

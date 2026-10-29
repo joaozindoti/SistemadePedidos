@@ -73,6 +73,23 @@ Deno.test("entrega exige endereço completo; retirada descarta", () => {
   assertEquals(parseBody(pedido({ address: { street: "Rua A" } })).address, null);
 });
 
+Deno.test("comer no local: mesa opcional, só nesse tipo e com limite", () => {
+  const naMesa = parseBody(pedido({ order_type: "local", table_number: "  5 " }));
+  assertEquals(naMesa.order_type, "local");
+  assertEquals(naMesa.table_number, "5");
+  assertEquals(naMesa.address, null);
+
+  // De casa, ainda a caminho: sem mesa.
+  assertEquals(parseBody(pedido({ order_type: "local" })).table_number, null);
+  assertEquals(parseBody(pedido({ order_type: "local", table_number: "   " })).table_number, null);
+
+  // Mesa vinda em retirada/entrega é descartada.
+  assertEquals(parseBody(pedido({ table_number: "5" })).table_number, null);
+
+  erro(pedido({ order_type: "local", table_number: "x".repeat(21) }), "Mesa muito longo");
+  erro(pedido({ order_type: "local", table_number: 5 }), "Mesa inválido");
+});
+
 Deno.test("limites de itens e quantidade", () => {
   erro(pedido({ items: [] }), "Carrinho vazio");
   const item = { menu_item_id: PIZZA, flavor_ids: [SABOR_A], quantity: 1 };

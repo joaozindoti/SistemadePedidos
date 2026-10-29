@@ -2,8 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/browserClient";
-import type { OrderStatus } from "@/lib/types";
 import { formatBRL, Icon } from "@/lib/ui";
+import { orderTypeText, type OrderStatus, type OrderType } from "@/lib/types";
 import { playNewOrderBeep } from "@/lib/sound";
 import {
   ComandaPrint,
@@ -29,7 +29,8 @@ interface QueueOrder {
   id: string;
   order_number: number | null;
   status: OrderStatus;
-  order_type: "entrega" | "retirada";
+  order_type: OrderType;
+  table_number: string | null;
   payment_method: "dinheiro" | "cartao" | "pix";
   total: number;
   delivery_fee: number | null;
@@ -52,7 +53,7 @@ interface QueueOrder {
 }
 
 const ORDER_SELECT = `
-  id, order_number, status, order_type, payment_method, total, delivery_fee, change_for,
+  id, order_number, status, order_type, table_number, payment_method, total, delivery_fee, change_for,
   notes, estimated_minutes, delivery_estimated_minutes, created_at,
   address_street, address_number, address_complement, address_neighborhood, address_city,
   customer_name, notificacao_status, notificacao_erro,
@@ -685,8 +686,13 @@ export default function OrderQueue({
             </div>
 
             <div className="flex flex-col gap-space-xs border-t border-surface-container-highest pt-space-xs font-body-sm text-body-sm text-on-surface-variant">
-              <p>
-                {order.order_type === "entrega" ? "Entrega" : "Retirada"}
+              <p
+                className={
+                  order.order_type === "local" ? "flex items-center gap-space-xs font-semibold text-on-surface" : undefined
+                }
+              >
+                {order.order_type === "local" && <Icon name="restaurant" className="text-[16px] text-primary" />}
+                {orderTypeText(order.order_type, order.table_number)}
                 {formatAddress(order) ? ` · ${formatAddress(order)}` : ""}
               </p>
               <p>{PAYMENT_LABELS[order.payment_method] ?? order.payment_method}</p>

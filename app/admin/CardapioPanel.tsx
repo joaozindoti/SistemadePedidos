@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/browserClient";
+import MesasQrCard from "./MesasQrCard";
 import { formatBRL, Icon, parseMoney } from "@/lib/ui";
 import { DIAS_SEMANA, fetchLojaStatus, formatHora, textoFolga, type LojaStatus, type ModoLoja } from "@/lib/loja";
 import type { Crust, Flavor, MenuItem } from "@/lib/types";
@@ -958,6 +959,8 @@ export default function CardapioPanel() {
   return (
     <div className="flex flex-col gap-space-md pb-space-xl">
       <HorarioCard onToast={show} />
+
+      <MesasQrCard />
 
       <div className="relative flex items-center">
         <Icon name="search" className="absolute left-space-sm text-[20px] text-on-surface-variant" />

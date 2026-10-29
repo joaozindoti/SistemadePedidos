@@ -52,7 +52,30 @@ export const ORDER_LIMITS = {
   notesMax: 500,
   itemNotesMax: 200,
   addressFieldMax: 120,
+  tableMax: 20,
 } as const;
+
+// "local" = comer na pizzaria: pedido de casa antes de chegar ou já na mesa.
+export type OrderType = "entrega" | "retirada" | "local";
+
+export const ORDER_TYPE_LABEL: Record<OrderType, string> = {
+  entrega: "Entrega",
+  retirada: "Retirada",
+  local: "Comer aqui",
+};
+
+export const ORDER_TYPE_ICON: Record<OrderType, string> = {
+  entrega: "two_wheeler",
+  retirada: "storefront",
+  local: "restaurant",
+};
+
+// "Comer aqui · Mesa 5" / "Comer aqui · a caminho" / "Entrega".
+export function orderTypeText(type: string, tableNumber?: string | null): string {
+  const label = ORDER_TYPE_LABEL[type as OrderType] ?? type;
+  if (type !== "local") return label;
+  return tableNumber ? `${label} · Mesa ${tableNumber}` : `${label} · a caminho`;
+}
 
 export interface Address {
   street: string;

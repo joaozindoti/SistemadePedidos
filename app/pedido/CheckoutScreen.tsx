@@ -1,7 +1,15 @@
 "use client";
 
 import { useId } from "react";
-import { ORDER_LIMITS, type Address, type CartItem, type TaxaEntrega } from "@/lib/types";
+import {
+  ORDER_LIMITS,
+  ORDER_TYPE_ICON,
+  ORDER_TYPE_LABEL,
+  type Address,
+  type CartItem,
+  type OrderType,
+  type TaxaEntrega,
+} from "@/lib/types";
 import { formatBRL, Icon } from "./icons";
 import { parseMoney as parseMoneyAny } from "@/lib/ui";
 
@@ -62,6 +70,9 @@ export default function CheckoutScreen({
   onCustomerPhoneChange,
   orderType,
   onOrderTypeChange,
+  tableNumber,
+  onTableNumberChange,
+  mesaDoQr,
   deliveryAtivo,
   address,
   onAddressChange,
@@ -89,8 +100,12 @@ export default function CheckoutScreen({
   customerPhone: string;
   onCustomerPhoneChange: (value: string) => void;
   deliveryAtivo: boolean;
-  orderType: "entrega" | "retirada" | null;
-  onOrderTypeChange: (type: "entrega" | "retirada") => void;
+  orderType: OrderType | null;
+  onOrderTypeChange: (type: OrderType) => void;
+  tableNumber: string;
+  onTableNumberChange: (value: string) => void;
+  // Mesa do QR Code, se o cliente abriu o cardápio por ele.
+  mesaDoQr: string | null;
   address: Address;
   onAddressChange: (patch: Partial<Address>) => void;
   paymentMethod: PaymentMethod | null;
@@ -114,6 +129,7 @@ export default function CheckoutScreen({
     name: `${uid}-nome`,
     phone: `${uid}-telefone`,
     orderType: `${uid}-tipo`,
+    table: `${uid}-mesa`,
     street: `${uid}-rua`,
     number: `${uid}-numero`,
     complement: `${uid}-complemento`,
@@ -147,7 +163,7 @@ export default function CheckoutScreen({
   else if (phoneDigits < ORDER_LIMITS.phoneMinDigits) {
     pending.push({ label: "telefone com DDD", focus: ids.phone });
   }
-  if (orderType === null) pending.push({ label: "entrega ou retirada", focus: ids.orderType });
+  if (orderType === null) pending.push({ label: "como quer receber o pedido", focus: ids.orderType });
   if (orderType === "entrega") {
     if (!address.street.trim()) pending.push({ label: "rua", focus: ids.street });
     if (!address.number.trim()) pending.push({ label: "número", focus: ids.number });
@@ -328,14 +344,14 @@ export default function CheckoutScreen({
 
         <section className="mt-space-lg flex flex-col gap-space-xs">
           <h2 id={`${ids.orderType}-titulo`} className={HEADING_CLASS}>
-            Entrega ou retirada?
+            Como você quer receber?
           </h2>
           <div
             role="group"
             aria-labelledby={`${ids.orderType}-titulo`}
-            className="mt-space-xs flex gap-space-sm"
+            className="mt-space-xs grid grid-cols-3 gap-space-xs"
           >
-            {(["entrega", "retirada"] as const).map((type, i) => (
+            {(["entrega", "retirada", "local"] as const).map((type, i) => (
               <button
                 key={type}
                 id={i === 0 ? ids.orderType : undefined}
@@ -343,9 +359,14 @@ export default function CheckoutScreen({
                 onClick={() => onOrderTypeChange(type)}
                 aria-pressed={orderType === type}
                 disabled={type === "entrega" && !deliveryAtivo}
-                className={`flex-1 py-space-sm ${choiceClass(orderType === type)} disabled:opacity-40`}
+                className={`flex min-h-16 flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-space-xs font-display text-lg font-bold uppercase leading-tight transition-colors disabled:opacity-40 ${
+                  orderType === type
+                    ? "bg-primary text-on-primary"
+                    : "bg-surface-container text-on-surface-variant hover:text-on-surface"
+                }`}
               >
-                {type === "entrega" ? "Entrega" : "Retirada"}
+                <Icon name={ORDER_TYPE_ICON[type]} className="text-[22px]" />
+                {ORDER_TYPE_LABEL[type]}
               </button>
             ))}
           </div>
@@ -356,6 +377,37 @@ export default function CheckoutScreen({
             </p>
           )}
         </section>
+
+        {orderType === "local" && (
+          <section className="mt-space-lg flex flex-col gap-space-xs">
+            <label htmlFor={ids.table} className={HEADING_CLASS}>
+              Número da mesa
+            </label>
+            {mesaDoQr && tableNumber.trim() === mesaDoQr && (
+              <p className="flex items-center gap-space-xs rounded-lg bg-primary/10 px-space-sm py-space-xs font-body-md text-body-md text-on-surface">
+                <Icon name="restaurant" className="shrink-0 text-[20px] text-primary" />
+                <span>
+                  Você está na <strong>Mesa {mesaDoQr}</strong>. Seu pedido vai direto pra ela!
+                </span>
+              </p>
+            )}
+            <input
+              id={ids.table}
+              value={tableNumber}
+              maxLength={ORDER_LIMITS.tableMax}
+              onChange={(e) => onTableNumberChange(e.target.value)}
+              placeholder="Ex.: 5"
+              inputMode="numeric"
+              enterKeyHint="next"
+              aria-describedby={`${ids.table}-ajuda`}
+              className={INPUT_CLASS}
+            />
+            <p id={`${ids.table}-ajuda`} className="font-body-sm text-body-sm text-on-surface-variant">
+              Já está na pizzaria? Coloque o número da mesa. Ainda vai chegar? Deixe em branco que a
+              gente prepara pra quando você chegar.
+            </p>
+          </section>
+        )}
 
         {orderType === "entrega" && (
           <fieldset className="mt-space-lg flex flex-col gap-space-sm">
@@ -465,7 +517,8 @@ export default function CheckoutScreen({
                 aria-pressed={paymentMethod === option.value}
                 className={`px-space-md py-space-xs ${choiceClass(paymentMethod === option.value)}`}
               >
-                {option.label}
+                {/* "na entrega" só faz sentido em entrega */}
+                {option.value === "cartao" && orderType !== "entrega" ? "Cartão" : option.label}
               </button>
             ))}
           </div>

@@ -2,6 +2,7 @@
 
 import { createPortal } from "react-dom";
 import { formatBRL } from "@/lib/ui";
+import type { OrderType } from "@/lib/types";
 
 // Tudo que a comanda (tela da cozinha e impressão) precisa saber de um
 // pedido. Os campos de endereço/pagamento/total só existem pro admin — a
@@ -19,7 +20,9 @@ export interface ComandaItem {
 export interface ComandaOrder {
   id: string;
   order_number: number | null;
-  order_type: "entrega" | "retirada";
+  order_type: OrderType;
+  // Só em "local": mesa do cliente (null = a caminho).
+  table_number?: string | null;
   notes: string | null;
   created_at: string;
   accepted_at?: string | null;
@@ -41,7 +44,7 @@ export interface ComandaOrder {
 
 export const PAYMENT_LABELS: Record<string, string> = {
   dinheiro: "Dinheiro",
-  cartao: "Cartão na entrega",
+  cartao: "Cartão",
   pix: "Pix",
 };
 
@@ -146,7 +149,13 @@ export function ComandaPrint({ order }: { order: ComandaOrder | null }) {
           {customerName(order) || "Cliente sem nome"}
         </div>
         <div style={{ fontWeight: 800, fontSize: "12pt" }}>
-          {order.order_type === "entrega" ? "» ENTREGA" : "» RETIRADA NO BALCÃO"}
+          {order.order_type === "entrega"
+            ? "» ENTREGA"
+            : order.order_type === "local"
+              ? order.table_number
+                ? `» COMER NO LOCAL — MESA ${order.table_number}`
+                : "» COMER NO LOCAL (cliente a caminho)"
+              : "» RETIRADA NO BALCÃO"}
         </div>
         {order.estimated_minutes != null && (
           <div style={{ fontSize: "10pt" }}>Preparo: {order.estimated_minutes} min</div>

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/browserClient";
+import { orderTypeText } from "@/lib/types";
 import { formatBRL, Icon, parseMoney } from "@/lib/ui";
 
 // Caixa: relatório do dia, da semana e do mês, gastos com material e o
@@ -34,6 +35,7 @@ interface PedidoCaixa {
   order_number: number | null;
   created_at: string;
   order_type: string;
+  table_number: string | null;
   customer_name: string | null;
   customer: { name: string | null; phone: string } | null;
   items: {
@@ -176,7 +178,7 @@ export default function CaixaPanel() {
       supabase
         .from("orders")
         .select(
-          `id, order_number, created_at, order_type, customer_name, total, delivery_fee, payment_method, status,
+          `id, order_number, created_at, order_type, table_number, customer_name, total, delivery_fee, payment_method, status,
            customer:customers ( name, phone ),
            items:order_items ( quantity, menu_item:menu_items ( name ), crust:crusts ( name ), order_item_flavors ( flavor:flavors ( name ) ) )`,
         )
@@ -422,7 +424,7 @@ export default function CaixaPanel() {
                             </p>
                           ))}
                           <p className="mt-1 text-on-surface-variant">
-                            {p.order_type === "entrega" ? "Entrega" : "Retirada"}
+                            {orderTypeText(p.order_type, p.table_number)}
                             {Number(p.delivery_fee ?? 0) > 0 && ` (taxa ${formatBRL(Number(p.delivery_fee))})`}
                             {p.customer?.phone && ` · ${p.customer.phone}`}
                           </p>
