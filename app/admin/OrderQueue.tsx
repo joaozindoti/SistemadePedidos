@@ -30,7 +30,6 @@ interface QueueOrder {
   order_number: number | null;
   status: OrderStatus;
   order_type: OrderType;
-  table_number: string | null;
   payment_method: "dinheiro" | "cartao" | "pix";
   total: number;
   delivery_fee: number | null;
@@ -53,7 +52,7 @@ interface QueueOrder {
 }
 
 const ORDER_SELECT = `
-  id, order_number, status, order_type, table_number, payment_method, total, delivery_fee, change_for,
+  id, order_number, status, order_type, payment_method, total, delivery_fee, change_for,
   notes, estimated_minutes, delivery_estimated_minutes, created_at,
   address_street, address_number, address_complement, address_neighborhood, address_city,
   customer_name, notificacao_status, notificacao_erro,
@@ -692,7 +691,7 @@ export default function OrderQueue({
                 }
               >
                 {order.order_type === "local" && <Icon name="restaurant" className="text-[16px] text-primary" />}
-                {orderTypeText(order.order_type, order.table_number)}
+                {orderTypeText(order.order_type)}
                 {formatAddress(order) ? ` · ${formatAddress(order)}` : ""}
               </p>
               <p>{PAYMENT_LABELS[order.payment_method] ?? order.payment_method}</p>

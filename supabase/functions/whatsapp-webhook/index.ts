@@ -157,9 +157,7 @@ Deno.serve(async (req) => {
         : "";
       await sendText(
         phone,
-        `Oi! A Sidney & Shirley Pizzaria já está fechada no momento. 🌙${horario}
-
-Amanhã tem pizza quentinha te esperando! 🍕`,
+        `Oi! A Sidney & Shirley Pizzaria já está fechada no momento. 🌙${horario}`,
       );
     }
     return new Response("ok", { status: 200 });

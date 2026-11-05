@@ -20,17 +20,9 @@ async function loadInitialData(): Promise<PedidoInitialData> {
   }
 }
 
-// QR Code da mesa abre /pedido?mesa=5: o pedido já vem como "comer aqui"
-// nessa mesa. Só letras, números e espaço, até 20 caracteres.
-function parseMesa(raw: string | string[] | undefined): string | null {
-  const value = Array.isArray(raw) ? raw[0] : raw;
-  const clean = (value ?? "").replace(/[^\p{L}\p{N} ]/gu, "").trim().slice(0, 20);
-  return clean || null;
-}
-
-export default async function PedidoPage(props: PageProps<"/pedido">) {
+export default async function PedidoPage() {
   // Cardápio, esgotados e horário mudam a qualquer hora: nada de prerender.
   await connection();
-  const [initialData, searchParams] = await Promise.all([loadInitialData(), props.searchParams]);
-  return <PedidoFlow initialData={initialData} mesaInicial={parseMesa(searchParams.mesa)} />;
+  const initialData = await loadInitialData();
+  return <PedidoFlow initialData={initialData} />;
 }

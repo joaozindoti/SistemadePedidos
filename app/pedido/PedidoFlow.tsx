@@ -36,14 +36,7 @@ function joinNames(names: string[]): string {
   return `${names.slice(0, -1).join(", ")} e ${names[names.length - 1]}`;
 }
 
-export default function PedidoFlow({
-  initialData,
-  mesaInicial = null,
-}: {
-  initialData: PedidoInitialData;
-  // Veio pelo QR Code da mesa: já começa como "comer aqui" nessa mesa.
-  mesaInicial?: string | null;
-}) {
+export default function PedidoFlow({ initialData }: { initialData: PedidoInitialData }) {
   const [loadState, setLoadState] = useState<"loading" | "ready" | "error">(
     initialData.menu ? "ready" : "loading",
   );
@@ -91,8 +84,7 @@ export default function PedidoFlow({
 
   const [customerName, setCustomerName] = useState("");
   const [customerPhone, setCustomerPhone] = useState("");
-  const [orderType, setOrderType] = useState<OrderType | null>(mesaInicial ? "local" : null);
-  const [tableNumber, setTableNumber] = useState(mesaInicial ?? "");
+  const [orderType, setOrderType] = useState<OrderType | null>(null);
   const [address, setAddress] = useState<Address>({
     street: "",
     number: "",
@@ -293,7 +285,6 @@ export default function PedidoFlow({
               city: address.city.trim(),
             }
           : undefined,
-      table_number: orderType === "local" ? tableNumber.trim() || undefined : undefined,
       payment_method: paymentMethod,
       change_for:
         paymentMethod === "dinheiro" && changeFor && changeFor !== "sem"
@@ -365,9 +356,7 @@ export default function PedidoFlow({
     setCart([]);
     setCustomerName("");
     setCustomerPhone("");
-    // Na mesa, o próximo pedido costuma ser da mesma mesa.
-    setOrderType(mesaInicial ? "local" : null);
-    setTableNumber(mesaInicial ?? "");
+    setOrderType(null);
     setAddress({ street: "", number: "", complement: "", neighborhood: "", city: "" });
     setPaymentMethod(null);
     setOrderNotes("");
@@ -436,9 +425,6 @@ export default function PedidoFlow({
           deliveryAtivo={deliveryAtivo}
           orderType={deliveryAtivo ? orderType : orderType === "entrega" ? null : orderType}
           onOrderTypeChange={setOrderType}
-          tableNumber={tableNumber}
-          onTableNumberChange={setTableNumber}
-          mesaDoQr={mesaInicial}
           address={address}
           onAddressChange={(patch) => setAddress((current) => ({ ...current, ...patch }))}
           paymentMethod={paymentMethod}

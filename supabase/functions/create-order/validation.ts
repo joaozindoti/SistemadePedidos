@@ -3,7 +3,7 @@
 // testar com `deno test`.
 import { canonicalPhone } from "../_shared/phone.ts";
 
-// "local" = comer na pizzaria (de casa antes de chegar, ou já na mesa).
+// "local" = comer na pizzaria.
 export const ORDER_TYPES = ["entrega", "retirada", "local"] as const;
 export const PAYMENT_METHODS = ["dinheiro", "cartao", "pix"] as const;
 export const MAX_ITEMS = 30;
@@ -12,7 +12,6 @@ export const MAX_NAME = 80;
 export const MAX_NOTES = 500;
 export const MAX_ITEM_NOTES = 200;
 export const MAX_ADDRESS_FIELD = 120;
-export const MAX_TABLE = 20;
 export const MAX_CHANGE_FOR = 100000;
 const UUID_RE =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -38,8 +37,6 @@ export interface CreateOrderInput {
   phone: string;
   order_type: (typeof ORDER_TYPES)[number];
   address: AddressInput | null;
-  // Só em "local": mesa onde o cliente está. null = ainda a caminho.
-  table_number: string | null;
   payment_method: (typeof PAYMENT_METHODS)[number];
   // Só pra dinheiro: quanto o cliente vai entregar ("troco para R$ 100").
   change_for: number | null;
@@ -165,8 +162,6 @@ export function parseBody(raw: unknown): CreateOrderInput {
 
   // Endereço só conta em entrega; nas outras o que vier é descartado.
   const address = orderType === "entrega" ? parseAddress(raw.address) : null;
-  // Mesa só conta em "comer no local"; nas outras é descartada.
-  const tableNumber = orderType === "local" ? optionalText(raw.table_number, MAX_TABLE, "Mesa") : null;
 
   let changeFor: number | null = null;
   if (paymentMethod === "dinheiro" && raw.change_for != null) {
@@ -190,7 +185,6 @@ export function parseBody(raw: unknown): CreateOrderInput {
     phone,
     order_type: orderType,
     address,
-    table_number: tableNumber,
     payment_method: paymentMethod,
     change_for: changeFor,
     notes: optionalText(raw.notes, MAX_NOTES, "Observação"),

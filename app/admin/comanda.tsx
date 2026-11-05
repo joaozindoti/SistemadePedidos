@@ -21,8 +21,6 @@ export interface ComandaOrder {
   id: string;
   order_number: number | null;
   order_type: OrderType;
-  // Só em "local": mesa do cliente (null = a caminho).
-  table_number?: string | null;
   notes: string | null;
   created_at: string;
   accepted_at?: string | null;
@@ -152,9 +150,7 @@ export function ComandaPrint({ order }: { order: ComandaOrder | null }) {
           {order.order_type === "entrega"
             ? "» ENTREGA"
             : order.order_type === "local"
-              ? order.table_number
-                ? `» COMER NO LOCAL — MESA ${order.table_number}`
-                : "» COMER NO LOCAL (cliente a caminho)"
+              ? "» COMER NO LOCAL"
               : "» RETIRADA NO BALCÃO"}
         </div>
         {order.estimated_minutes != null && (

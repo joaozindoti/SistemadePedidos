@@ -162,15 +162,7 @@ async function buildMessage(
       return `${oi}${pedido} está pronto e já vai sair para entrega!${tempo}`;
     }
     if (payload.order_type === "local") {
-      // A mesa não vem no payload do trigger: busca no pedido.
-      const { data: mesa } = await supabase
-        .from("orders")
-        .select("table_number")
-        .eq("id", payload.order_id)
-        .maybeSingle();
-      return mesa?.table_number
-        ? `${oi}${pedido} está pronto! Já estamos levando até a sua mesa (Mesa ${mesa.table_number}). 🍕`
-        : `${oi}${pedido} está pronto! Te esperamos aqui na pizzaria. 🍕`;
+      return `${oi}${pedido} está pronto! Bom apetite! 🍕`;
     }
     return `${oi}${pedido} está pronto! Já pode vir buscar.`;
   }

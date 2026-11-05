@@ -380,20 +380,6 @@ body {
     color: #000;
     font-family: var(--font-atkinson), sans-serif;
   }
-
-  /* QR Code das mesas sai em A4, não na bobina de 80mm da comanda. */
-  @page mesas {
-    size: A4;
-    margin: 10mm;
-  }
-
-  .print-mesas {
-    page: mesas;
-  }
-
-  .print-mesas .mesa-card {
-    break-inside: avoid;
-  }
 }
 
 /* Faíscas subindo no hero do cardápio */

@@ -22,7 +22,7 @@ import {
 } from "./comanda";
 
 const ORDER_SELECT = `
-  id, order_number, order_type, table_number, notes, created_at, accepted_at, estimated_minutes, customer_name,
+  id, order_number, order_type, notes, created_at, accepted_at, estimated_minutes, customer_name,
   customer:customers ( name ),
   items:order_items (
     id, quantity, item_notes,
@@ -406,7 +406,7 @@ export default function KitchenDisplay() {
                       }`}
                     >
                       <Icon name={ORDER_TYPE_ICON[order.order_type] ?? "storefront"} className="text-[22px]" />
-                      {orderTypeText(order.order_type, order.table_number)}
+                      {orderTypeText(order.order_type)}
                     </span>
                     <span className="text-lg text-on-surface-variant">
                       Aceito às <strong className="text-on-surface">{clockTime(startedAt(order))}</strong>

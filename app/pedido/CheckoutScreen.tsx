@@ -70,9 +70,6 @@ export default function CheckoutScreen({
   onCustomerPhoneChange,
   orderType,
   onOrderTypeChange,
-  tableNumber,
-  onTableNumberChange,
-  mesaDoQr,
   deliveryAtivo,
   address,
   onAddressChange,
@@ -102,10 +99,6 @@ export default function CheckoutScreen({
   deliveryAtivo: boolean;
   orderType: OrderType | null;
   onOrderTypeChange: (type: OrderType) => void;
-  tableNumber: string;
-  onTableNumberChange: (value: string) => void;
-  // Mesa do QR Code, se o cliente abriu o cardápio por ele.
-  mesaDoQr: string | null;
   address: Address;
   onAddressChange: (patch: Partial<Address>) => void;
   paymentMethod: PaymentMethod | null;
@@ -129,7 +122,6 @@ export default function CheckoutScreen({
     name: `${uid}-nome`,
     phone: `${uid}-telefone`,
     orderType: `${uid}-tipo`,
-    table: `${uid}-mesa`,
     street: `${uid}-rua`,
     number: `${uid}-numero`,
     complement: `${uid}-complemento`,
@@ -379,34 +371,10 @@ export default function CheckoutScreen({
         </section>
 
         {orderType === "local" && (
-          <section className="mt-space-lg flex flex-col gap-space-xs">
-            <label htmlFor={ids.table} className={HEADING_CLASS}>
-              Número da mesa
-            </label>
-            {mesaDoQr && tableNumber.trim() === mesaDoQr && (
-              <p className="flex items-center gap-space-xs rounded-lg bg-primary/10 px-space-sm py-space-xs font-body-md text-body-md text-on-surface">
-                <Icon name="restaurant" className="shrink-0 text-[20px] text-primary" />
-                <span>
-                  Você está na <strong>Mesa {mesaDoQr}</strong>. Seu pedido vai direto pra ela!
-                </span>
-              </p>
-            )}
-            <input
-              id={ids.table}
-              value={tableNumber}
-              maxLength={ORDER_LIMITS.tableMax}
-              onChange={(e) => onTableNumberChange(e.target.value)}
-              placeholder="Ex.: 5"
-              inputMode="numeric"
-              enterKeyHint="next"
-              aria-describedby={`${ids.table}-ajuda`}
-              className={INPUT_CLASS}
-            />
-            <p id={`${ids.table}-ajuda`} className="font-body-sm text-body-sm text-on-surface-variant">
-              Já está na pizzaria? Coloque o número da mesa. Ainda vai chegar? Deixe em branco que a
-              gente prepara pra quando você chegar.
-            </p>
-          </section>
+          <p className="mt-space-sm flex items-start gap-space-xs rounded-lg bg-primary/10 px-space-sm py-space-xs font-body-md text-body-md text-on-surface">
+            <Icon name="restaurant" className="mt-0.5 shrink-0 text-[20px] text-primary" />
+            <span>Seu pedido fica pronto aqui na pizzaria pra você comer no local.</span>
+          </p>
         )}
 
         {orderType === "entrega" && (
