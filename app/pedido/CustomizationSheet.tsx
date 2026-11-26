@@ -532,15 +532,22 @@ export default function CustomizationSheet({
                                     />
                                   )}
                                 </span>
-                                <span className="flex flex-wrap items-center gap-space-xs">
-                                  <span
-                                    className={`font-body-md text-body-md text-on-surface ${selected ? "font-semibold" : ""}`}
-                                  >
-                                    {flavor.name}
+                                <span className="flex min-w-0 flex-col">
+                                  <span className="flex flex-wrap items-center gap-space-xs">
+                                    <span
+                                      className={`font-body-md text-body-md text-on-surface ${selected ? "font-semibold" : ""}`}
+                                    >
+                                      {flavor.name}
+                                    </span>
+                                    {hasOptionalFilling(flavor.name) && (
+                                      <span className="rounded bg-primary/20 px-1.5 py-0.5 font-label-sm text-label-sm font-semibold uppercase tracking-wider text-primary">
+                                        Opção de recheio
+                                      </span>
+                                    )}
                                   </span>
-                                  {hasOptionalFilling(flavor.name) && (
-                                    <span className="rounded bg-primary/20 px-1.5 py-0.5 font-label-sm text-label-sm font-semibold uppercase tracking-wider text-primary">
-                                      Opção de recheio
+                                  {flavor.ingredients && (
+                                    <span className="font-body-sm text-body-sm text-on-surface-variant">
+                                      {flavor.ingredients}
                                     </span>
                                   )}
                                 </span>

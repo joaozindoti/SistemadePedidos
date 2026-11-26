@@ -169,6 +169,7 @@ function EditableRow({
   onRemoveImage,
   especial,
   onToggleEspecial,
+  ingredients,
   onSave,
   onToggleActive,
 }: {
@@ -186,14 +187,23 @@ function EditableRow({
   // Tamanho de pizza: cobra ou não o adicional dos sabores especiais.
   especial?: boolean;
   onToggleEspecial?: () => void;
-  onSave: (name: string, price: number, maxFlavors: number | null) => Promise<boolean>;
+  // Só sabor passa (mesmo null); undefined esconde o campo.
+  ingredients?: string | null;
+  onSave: (
+    name: string,
+    price: number,
+    maxFlavors: number | null,
+    ingredients: string | null,
+  ) => Promise<boolean>;
   onToggleActive: () => void;
 }) {
   const withMaxFlavors = maxFlavors !== undefined;
+  const withIngredients = ingredients !== undefined;
   const [editing, setEditing] = useState(false);
   const [nameInput, setNameInput] = useState(name);
   const [priceInput, setPriceInput] = useState(toInput(price));
   const [maxFlavorsInput, setMaxFlavorsInput] = useState(maxFlavors != null ? String(maxFlavors) : "");
+  const [ingredientsInput, setIngredientsInput] = useState(ingredients ?? "");
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -221,13 +231,19 @@ function EditableRow({
     setNameInput(name);
     setPriceInput(toInput(price));
     setMaxFlavorsInput(maxFlavors != null ? String(maxFlavors) : "");
+    setIngredientsInput(ingredients ?? "");
     setEditing(true);
   }
 
   async function save() {
     if (!valid || saving) return;
     setSaving(true);
-    const ok = await onSave(nameInput.trim(), parsedPrice!, parsedMaxFlavors);
+    const ok = await onSave(
+      nameInput.trim(),
+      parsedPrice!,
+      parsedMaxFlavors,
+      withIngredients ? ingredientsInput.trim() || null : null,
+    );
     setSaving(false);
     if (ok) setEditing(false);
   }
@@ -255,6 +271,21 @@ function EditableRow({
           />
         </div>
         {withMaxFlavors && <MaxFlavorsSelect value={maxFlavorsInput} onChange={setMaxFlavorsInput} />}
+        {withIngredients && (
+          <label className="flex flex-col gap-1">
+            <span className="font-label-sm text-label-sm uppercase text-on-surface-variant">
+              Ingredientes (aparece no cardápio)
+            </span>
+            <textarea
+              value={ingredientsInput}
+              onChange={(e) => setIngredientsInput(e.target.value)}
+              maxLength={300}
+              rows={2}
+              placeholder="Ex.: calabresa, cebola, mussarela e orégano"
+              className="w-full resize-none rounded-lg border border-outline-variant bg-surface-container-lowest p-space-sm font-body-md text-body-md text-on-surface outline-none placeholder:text-outline focus:border-primary"
+            />
+          </label>
+        )}
         {image && onRemoveImage && (
           <button
             type="button"
@@ -335,6 +366,14 @@ function EditableRow({
               <span className="font-semibold text-error"> · defina o máx. de sabores</span>
             ))}
         </span>
+        {withIngredients &&
+          (ingredients ? (
+            <span className="line-clamp-2 font-body-sm text-body-sm text-on-surface-variant">{ingredients}</span>
+          ) : (
+            <span className="font-body-sm text-body-sm italic text-outline">
+              Sem ingredientes (toque no lápis pra adicionar)
+            </span>
+          ))}
         {onToggleEspecial && (
           <button
             type="button"
@@ -1000,7 +1039,10 @@ export default function CardapioPanel() {
               image={f.image_url}
               onUpload={(file) => uploadImage("flavors", flavors, setFlavors, f, "sabores", file)}
               onRemoveImage={() => removeImage("flavors", flavors, setFlavors, f)}
-              onSave={(name, price) => patchRow("flavors", flavors, setFlavors, f.id, { name, extra_price: price }, "Salvo ✓")}
+              ingredients={f.ingredients ?? null}
+              onSave={(name, price, _maxFlavors, ingredients) =>
+                patchRow("flavors", flavors, setFlavors, f.id, { name, extra_price: price, ingredients }, "Salvo ✓")
+              }
               onToggleActive={() =>
                 patchRow(
                   "flavors",

@@ -19,6 +19,8 @@ export interface Flavor {
   extra_price: number;
   active: boolean;
   image_url?: string | null;
+  // "Calabresa, cebola, mussarela e orégano" — preenchido no painel.
+  ingredients?: string | null;
 }
 
 export interface TaxaEntrega {

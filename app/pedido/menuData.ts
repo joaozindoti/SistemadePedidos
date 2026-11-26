@@ -29,7 +29,7 @@ export async function fetchMenu(supabase: SupabaseClient): Promise<MenuData | nu
       .order("base_price", { ascending: true }),
     supabase
       .from("flavors")
-      .select("id, name, flavor_type, extra_price, active, image_url")
+      .select("id, name, flavor_type, extra_price, active, image_url, ingredients")
       .eq("active", true)
       .order("name", { ascending: true }),
     supabase
